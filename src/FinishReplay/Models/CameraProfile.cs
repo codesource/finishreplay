@@ -30,4 +30,12 @@ public sealed class CameraProfile
     /// <summary>Effective latency used for sync: calibrated + manual (nulls treated as 0).</summary>
     public double EffectiveLatencyMs =>
         (CalibratedLatencyMs ?? 0) + (ManualOffsetMs ?? 0);
+
+    /// <summary>Build the openable device descriptor for this profile.</summary>
+    public CameraDevice ToDevice() => new(Id, DisplayName)
+    {
+        ProviderName = SourceType,
+        SourceType = SourceType,
+        SourceUrl = SourceUrl,
+    };
 }

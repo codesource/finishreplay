@@ -11,8 +11,9 @@ public enum RecordingState
 }
 
 /// <summary>
-/// Orchestrates live preview and recording, including the pre-record rolling buffer
-/// and post-record tail. Backend-agnostic: delegates actual capture to <see cref="IVideoBackend"/>.
+/// Orchestrates live preview and recording across <em>all</em> selected cameras at once, including
+/// the pre-record rolling buffer and post-record tail. Backend-agnostic: delegates actual capture
+/// to <see cref="IVideoBackend"/>.
 /// </summary>
 public interface IRecordingEngine
 {
@@ -26,12 +27,9 @@ public interface IRecordingEngine
 
     event EventHandler<RecordingState>? StateChanged;
 
-    Task StartPreviewAsync(CameraDevice camera);
+    /// <summary>Start recording every camera in <paramref name="cameras"/> simultaneously.</summary>
+    Task StartAsync(IReadOnlyList<CameraDevice> cameras);
 
-    /// <summary>Begin recording (manual or triggered). Includes the pre-record buffer.</summary>
-    Task StartRecordingAsync();
-
-    /// <summary>Stop recording after the post-record tail and flush the clip to disk.</summary>
-    /// <returns>The written clip path, or null if nothing was recorded.</returns>
-    Task<string?> StopRecordingAsync(string outputPath);
+    /// <summary>Stop recording all cameras after the post-record tail and flush clips.</summary>
+    Task StopAsync();
 }

@@ -48,7 +48,7 @@ public partial class MainViewModel : ViewModelBase
         // Settings are small; load once at startup so all pages see the same instance.
         settingsService.LoadAsync().GetAwaiter().GetResult();
 
-        Recording = new RecordingViewModel(cameraManager, recordingEngine, sessionManager, manualTiming, calibrationService);
+        Recording = new RecordingViewModel(recordingEngine, sessionManager, manualTiming, calibrationService, settingsService);
         Replay = new ReplayViewModel(replayEngine, sessionManager, timelineEngine);
         Settings = new SettingsViewModel(settingsService, cameraManager);
 

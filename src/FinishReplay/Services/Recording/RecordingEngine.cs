@@ -3,13 +3,14 @@ using FinishReplay.Models;
 namespace FinishReplay.Services.Recording;
 
 /// <summary>
-/// Default <see cref="IRecordingEngine"/>. Owns state transitions and the pre/post-record
-/// timing; defers actual capture to the injected <see cref="IVideoBackend"/>.
+/// Default <see cref="IRecordingEngine"/>. Owns state transitions and the pre/post-record timing;
+/// starts/stops every selected camera together. Actual capture is deferred to the injected
+/// <see cref="IVideoBackend"/>.
 /// </summary>
 public sealed class RecordingEngine : IRecordingEngine
 {
     private readonly IVideoBackend _backend;
-    private CameraDevice? _camera;
+    private IReadOnlyList<CameraDevice> _cameras = Array.Empty<CameraDevice>();
     private RecordingState _state = RecordingState.Idle;
 
     public RecordingEngine(IVideoBackend backend)
@@ -33,36 +34,32 @@ public sealed class RecordingEngine : IRecordingEngine
 
     public event EventHandler<RecordingState>? StateChanged;
 
-    public async Task StartPreviewAsync(CameraDevice camera)
+    public async Task StartAsync(IReadOnlyList<CameraDevice> cameras)
     {
-        _camera = camera;
-        await _backend.StartPreviewAsync(camera).ConfigureAwait(false);
-        State = RecordingState.Previewing;
-    }
+        if (cameras.Count == 0)
+            throw new InvalidOperationException("Select at least one camera before recording.");
 
-    public Task StartRecordingAsync()
-    {
-        if (_camera is null)
-            throw new InvalidOperationException("Start preview before recording.");
+        _cameras = cameras;
 
-        // TODO: mark the rolling buffer's start point so PreRecord seconds are retained.
+        // TODO: use one IVideoBackend instance per camera for true parallel capture, and mark
+        // each rolling buffer's start so PreRecord seconds are retained.
+        foreach (var cam in cameras)
+            await _backend.StartPreviewAsync(cam).ConfigureAwait(false);
+
         State = RecordingState.Recording;
-        return Task.CompletedTask;
     }
 
-    public async Task<string?> StopRecordingAsync(string outputPath)
+    public async Task StopAsync()
     {
         if (State != RecordingState.Recording)
-            return null;
+            return;
 
         State = RecordingState.Stopping;
 
-        // TODO: continue capturing for PostRecord before flushing.
-        var written = await _backend
-            .SaveClipAsync(outputPath, PreRecord, PostRecord)
-            .ConfigureAwait(false);
+        // TODO: keep capturing for PostRecord, then flush each camera's clip via SaveClipAsync.
+        await _backend.StopPreviewAsync().ConfigureAwait(false);
 
-        State = _camera is not null ? RecordingState.Previewing : RecordingState.Idle;
-        return written;
+        _cameras = Array.Empty<CameraDevice>();
+        State = RecordingState.Idle;
     }
 }
