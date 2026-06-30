@@ -32,9 +32,10 @@ public class MjpegCameraStreamTests
             using var client = await listener.AcceptTcpClientAsync(ct);
             await using var net = client.GetStream();
 
-            // Read the request headers (until blank line) so the client's GET completes.
+            // Read the request headers so the client's GET completes (one read is enough here).
             var reqBuf = new byte[4096];
-            await net.ReadAsync(reqBuf, ct);
+            if (await net.ReadAsync(reqBuf, ct) == 0)
+                return;
 
             var header =
                 "HTTP/1.1 200 OK\r\n" +
