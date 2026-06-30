@@ -1,0 +1,27 @@
+# Build output
+bin/
+obj/
+out/
+
+# .NET / Rider / VS
+*.user
+*.suo
+.vs/
+.idea/
+artifacts/
+
+# Deploy keys & secrets — NEVER commit private keys
+.deploy-keys/
+*.pem
+*.key
+!*.pub
+
+# Recorded sessions / local media
+*.mp4
+*.mov
+*.mkv
+*.timing.json
+
+# OS
+.DS_Store
+Thumbs.db

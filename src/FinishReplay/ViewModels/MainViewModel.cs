@@ -1,0 +1,69 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using FinishReplay.Services.Calibration;
+using FinishReplay.Services.Camera;
+using FinishReplay.Services.Camera.Providers;
+using FinishReplay.Services.Recording;
+using FinishReplay.Services.Replay;
+using FinishReplay.Services.Session;
+using FinishReplay.Services.Timeline;
+using FinishReplay.Services.Timing;
+
+namespace FinishReplay.ViewModels;
+
+/// <summary>
+/// Shell view model. Owns the composition root for the MVP and exposes the two pages
+/// (Recording / Replay) plus navigation between them.
+/// </summary>
+public partial class MainViewModel : ViewModelBase
+{
+    [ObservableProperty]
+    private ViewModelBase _currentPage;
+
+    public RecordingViewModel Recording { get; }
+    public ReplayViewModel Replay { get; }
+
+    public MainViewModel()
+    {
+        // --- composition root (swap for a DI container later) ---
+        var providerRegistry = new CameraProviderRegistry(new ICameraProvider[]
+        {
+            new UsbCameraProvider(),
+            new MjpegCameraProvider(),
+            new RtspCameraProvider(),
+            // TODO: register OnvifCameraProvider and other transports here.
+        });
+        ICameraManager cameraManager = new CameraManager(providerRegistry);
+        IVideoBackend videoBackend = new FfmpegVideoBackend();
+        IRecordingEngine recordingEngine = new RecordingEngine(videoBackend);
+        ISessionManager sessionManager = new SessionManager();
+        IReplayEngine replayEngine = new ReplayEngine();
+        ICameraLatencyCalibrationService calibrationService = new FakeCameraLatencyCalibrationService();
+        var timelineEngine = new TimelineEngine();
+        var manualTiming = new ManualTimingProvider();
+
+        Recording = new RecordingViewModel(cameraManager, recordingEngine, sessionManager, manualTiming, calibrationService);
+        Replay = new ReplayViewModel(replayEngine, sessionManager, timelineEngine);
+
+        _currentPage = Recording;
+    }
+
+    public bool IsRecordingSelected => CurrentPage == Recording;
+    public bool IsReplaySelected => CurrentPage == Replay;
+
+    partial void OnCurrentPageChanged(ViewModelBase value)
+    {
+        OnPropertyChanged(nameof(IsRecordingSelected));
+        OnPropertyChanged(nameof(IsReplaySelected));
+    }
+
+    [RelayCommand]
+    private void ShowRecording() => CurrentPage = Recording;
+
+    [RelayCommand]
+    private async Task ShowReplay()
+    {
+        await Replay.RefreshSessionsAsync();
+        CurrentPage = Replay;
+    }
+}

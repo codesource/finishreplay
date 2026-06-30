@@ -1,0 +1,117 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:FinishReplay.ViewModels"
+             xmlns:models="using:FinishReplay.Models"
+             xmlns:session="using:FinishReplay.Services.Session"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="660"
+             x:Class="FinishReplay.Views.ReplayView"
+             x:DataType="vm:ReplayViewModel">
+
+    <Grid ColumnDefinitions="*,300" Margin="16">
+
+        <!-- Left: player + timeline -->
+        <DockPanel Grid.Column="0" Margin="0,0,16,0">
+
+            <!-- Transport + timeline -->
+            <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" Spacing="10">
+
+                <!-- Timeline bar with progress fill and marker ticks -->
+                <Border Background="#E5E7EB" Height="28" CornerRadius="4" ClipToBounds="True">
+                    <Grid>
+                        <ProgressBar Minimum="0" Maximum="1" Value="{Binding PositionFraction}"
+                                     Background="Transparent" Foreground="#93C5FD" />
+                        <!-- TODO: render marker ticks positioned along the bar (Canvas.Left = fraction * width).
+                             For the MVP the markers are clickable in the list on the right. -->
+                    </Grid>
+                </Border>
+
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding PositionText}" FontFamily="Consolas" />
+                    <TextBlock Grid.Column="2" Text="{Binding DurationText}" FontFamily="Consolas"
+                               Foreground="#6B7280" />
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                    <Button Content="⏮ Frame" Command="{Binding StepBackwardCommand}" />
+                    <Button Content="Play / Pause" Command="{Binding PlayPauseCommand}" Padding="16,8" />
+                    <Button Content="Frame ⏭" Command="{Binding StepForwardCommand}" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Video surface placeholder -->
+            <Border Background="#111827" CornerRadius="6" MinHeight="320">
+                <TextBlock Text="Video player"
+                           Foreground="#9CA3AF" FontSize="20"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </DockPanel>
+
+        <!-- Right: sessions + markers + camera sync -->
+        <DockPanel Grid.Column="1" LastChildFill="False">
+
+            <StackPanel DockPanel.Dock="Top" Spacing="6">
+                <TextBlock Text="Recent sessions" FontWeight="SemiBold" />
+                <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Height="160">
+                    <ListBox ItemsSource="{Binding RecentSessions}"
+                             SelectedItem="{Binding SelectedSession}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="session:SessionInfo">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="{Binding SessionId}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding RecordedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}"
+                                               Foreground="#6B7280" FontSize="12" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </StackPanel>
+
+            <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,16,0,0">
+                <TextBlock Text="Markers" FontWeight="SemiBold" />
+                <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6">
+                    <ListBox ItemsSource="{Binding Markers}"
+                             SelectedItem="{Binding SelectedMarker}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:TimingTrigger">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Type}" FontWeight="SemiBold" Width="92" />
+                                        <TextBlock Text="{Binding VideoTime, StringFormat='mm\\:ss\\.fff'}"
+                                                   Foreground="#6B7280" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Jump"
+                                            Command="{Binding $parent[ListBox].((vm:ReplayViewModel)DataContext).JumpToMarkerCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </StackPanel>
+
+            <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,16,0,0">
+                <TextBlock Text="Cameras (sync offset)" FontWeight="SemiBold" />
+                <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6">
+                    <ItemsControl ItemsSource="{Binding Cameras}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:SessionCamera">
+                                <Grid ColumnDefinitions="*,Auto" Margin="8,4">
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding SourceType}" Foreground="#6B7280" FontSize="12" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                               Text="{Binding SyncOffsetMs, StringFormat='+{0:0.#} ms'}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+
+</UserControl>

@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Finish Replay",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/FinishReplay/bin/Debug/net9.0/FinishReplay.dll",
+      "cwd": "${workspaceFolder}/src/FinishReplay",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    }
+  ]
+}

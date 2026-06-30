@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:FinishReplay.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="720"
+        x:Class="FinishReplay.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Width="1100" Height="720"
+        MinWidth="900" MinHeight="600"
+        Title="Finish Replay">
+
+    <DockPanel>
+        <!-- Top navigation bar -->
+        <Border DockPanel.Dock="Top" Background="#F3F4F6" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="16,10" Spacing="8">
+                <TextBlock Text="Finish Replay" FontSize="18" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="0,0,16,0" />
+                <RadioButton GroupName="nav" Content="Recording"
+                             IsChecked="{Binding IsRecordingSelected, Mode=OneWay}"
+                             Command="{Binding ShowRecordingCommand}" />
+                <RadioButton GroupName="nav" Content="Replay"
+                             IsChecked="{Binding IsReplaySelected, Mode=OneWay}"
+                             Command="{Binding ShowReplayCommand}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Active page, resolved to a view by ViewLocator -->
+        <ContentControl Content="{Binding CurrentPage}" />
+    </DockPanel>
+
+</Window>
