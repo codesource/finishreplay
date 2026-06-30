@@ -1,0 +1,140 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:FinishReplay.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="660"
+             x:Class="FinishReplay.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+    <DockPanel Margin="16">
+
+        <!-- Save bar -->
+        <Border DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button Content="Save settings" Command="{Binding SaveCommand}"
+                        Background="#2563EB" Foreground="White" Padding="16,8" />
+                <TextBlock Text="{Binding StatusText}" Foreground="#16A34A" VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <TabControl>
+
+            <!-- Recording -->
+            <TabItem Header="Recording">
+                <ScrollViewer>
+                    <StackPanel Spacing="16" Margin="4,12" MaxWidth="520" HorizontalAlignment="Left">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Pre-record (seconds)" FontWeight="SemiBold" />
+                            <NumericUpDown Value="{Binding PreRecordSeconds}" Minimum="0" Maximum="60" Increment="1" />
+                            <TextBlock Text="Rolling buffer kept before a start trigger."
+                                       Foreground="#6B7280" FontSize="12" />
+                        </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Post-record (seconds)" FontWeight="SemiBold" />
+                            <NumericUpDown Value="{Binding PostRecordSeconds}" Minimum="0" Maximum="60" Increment="1" />
+                            <TextBlock Text="Recording continues this long after a stop trigger."
+                                       Foreground="#6B7280" FontSize="12" />
+                        </StackPanel>
+                        <Separator />
+                        <TextBlock Text="Event context (used in filenames)" FontWeight="SemiBold" />
+                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" >
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Category" VerticalAlignment="Center" Margin="0,4" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Margin="0,4" Text="{Binding Category}" Watermark="e.g. U18" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Discipline" VerticalAlignment="Center" Margin="0,4" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,4" Text="{Binding Discipline}" Watermark="e.g. 100m" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Series #" VerticalAlignment="Center" Margin="0,4" />
+                            <NumericUpDown Grid.Row="2" Grid.Column="1" Margin="0,4" Minimum="1" Increment="1" Value="{Binding SeriesNumber}" />
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Storage -->
+            <TabItem Header="Storage">
+                <StackPanel Spacing="10" Margin="4,12" MaxWidth="640" HorizontalAlignment="Left">
+                    <TextBlock Text="Where recordings are stored" FontWeight="SemiBold" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Grid.Column="0" Margin="0,0,6,0" Text="{Binding StorageDirectory}" />
+                        <Button Grid.Column="1" Name="BrowseButton" Content="Browse…" Click="OnBrowseClick" />
+                    </Grid>
+                    <TextBlock Text="Each session writes one video file per camera plus a &lt;session&gt;.timing.json metadata file here."
+                               Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" />
+                </StackPanel>
+            </TabItem>
+
+            <!-- Cameras -->
+            <TabItem Header="Cameras">
+                <DockPanel Margin="4,12">
+                    <StackPanel DockPanel.Dock="Top" Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Configured cameras" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="⟳ Detect cameras" Command="{Binding DetectCamerasCommand}" />
+                        </Grid>
+
+                        <!-- Add a network camera -->
+                        <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Add network camera" FontWeight="SemiBold" FontSize="13" />
+                                <Grid ColumnDefinitions="110,*,120,90" >
+                                    <ComboBox Grid.Column="0" Margin="0,0,6,0" ItemsSource="{Binding AvailableSourceTypes}"
+                                              SelectedItem="{Binding NewCameraType}" />
+                                    <TextBox Grid.Column="1" Margin="0,0,6,0" Text="{Binding NewCameraUrl}"
+                                             Watermark="rtsp:// or http:// URL" />
+                                    <TextBox Grid.Column="2" Margin="0,0,6,0" Text="{Binding NewCameraSuffix}" Watermark="suffix" />
+                                    <Button Grid.Column="3" Content="Add" Command="{Binding AddCameraCommand}"
+                                            HorizontalAlignment="Stretch" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- header row -->
+                        <Grid ColumnDefinitions="60,*,140,110,40" Margin="4,6,4,0">
+                            <TextBlock Grid.Column="0" Text="On" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Grid.Column="1" Text="Name" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Grid.Column="2" Text="Suffix" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Grid.Column="3" Text="Type" FontSize="12" Foreground="#6B7280" />
+                        </Grid>
+                    </StackPanel>
+
+                    <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Margin="0,6,0,0">
+                        <ItemsControl ItemsSource="{Binding Cameras}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CameraSettingRowViewModel">
+                                    <Grid ColumnDefinitions="60,*,140,110,40" Margin="4,6">
+                                        <CheckBox Grid.Column="0" IsChecked="{Binding Enabled}" />
+                                        <TextBox Grid.Column="1" Margin="0,0,6,0" Text="{Binding DisplayName}" />
+                                        <TextBox Grid.Column="2" Margin="0,0,6,0" Text="{Binding Suffix}" />
+                                        <TextBlock Grid.Column="3" Text="{Binding SourceType}" VerticalAlignment="Center"
+                                                   Foreground="#6B7280" />
+                                        <Button Grid.Column="4" Content="✕"
+                                                Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveCameraCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </DockPanel>
+            </TabItem>
+
+            <!-- Filename format -->
+            <TabItem Header="Filename">
+                <StackPanel Spacing="12" Margin="4,12" MaxWidth="640" HorizontalAlignment="Left">
+                    <TextBlock Text="Filename format" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding FilenameFormat}" />
+                    <TextBlock TextWrapping="Wrap" Foreground="#6B7280" FontSize="12"
+                               Text="Tokens: {date} {category} {discipline} {serie} {camera}. Empty values collapse and the camera suffix is appended automatically per camera." />
+                    <Border Background="#F3F4F6" CornerRadius="6" Padding="10">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Preview" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Text="{Binding FilenamePreview}" FontFamily="Consolas" FontSize="14" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </TabItem>
+
+        </TabControl>
+    </DockPanel>
+
+</UserControl>

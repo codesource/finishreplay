@@ -6,14 +6,15 @@ using FinishReplay.Services.Camera.Providers;
 using FinishReplay.Services.Recording;
 using FinishReplay.Services.Replay;
 using FinishReplay.Services.Session;
+using FinishReplay.Services.Settings;
 using FinishReplay.Services.Timeline;
 using FinishReplay.Services.Timing;
 
 namespace FinishReplay.ViewModels;
 
 /// <summary>
-/// Shell view model. Owns the composition root for the MVP and exposes the two pages
-/// (Recording / Replay) plus navigation between them.
+/// Shell view model. Owns the composition root for the MVP and exposes the pages
+/// (Recording / Replay / Settings) plus navigation between them.
 /// </summary>
 public partial class MainViewModel : ViewModelBase
 {
@@ -22,6 +23,7 @@ public partial class MainViewModel : ViewModelBase
 
     public RecordingViewModel Recording { get; }
     public ReplayViewModel Replay { get; }
+    public SettingsViewModel Settings { get; }
 
     public MainViewModel()
     {
@@ -42,19 +44,26 @@ public partial class MainViewModel : ViewModelBase
         var timelineEngine = new TimelineEngine();
         var manualTiming = new ManualTimingProvider();
 
+        ISettingsService settingsService = new SettingsService();
+        // Settings are small; load once at startup so all pages see the same instance.
+        settingsService.LoadAsync().GetAwaiter().GetResult();
+
         Recording = new RecordingViewModel(cameraManager, recordingEngine, sessionManager, manualTiming, calibrationService);
         Replay = new ReplayViewModel(replayEngine, sessionManager, timelineEngine);
+        Settings = new SettingsViewModel(settingsService, cameraManager);
 
         _currentPage = Recording;
     }
 
     public bool IsRecordingSelected => CurrentPage == Recording;
     public bool IsReplaySelected => CurrentPage == Replay;
+    public bool IsSettingsSelected => CurrentPage == Settings;
 
     partial void OnCurrentPageChanged(ViewModelBase value)
     {
         OnPropertyChanged(nameof(IsRecordingSelected));
         OnPropertyChanged(nameof(IsReplaySelected));
+        OnPropertyChanged(nameof(IsSettingsSelected));
     }
 
     [RelayCommand]
@@ -66,4 +75,7 @@ public partial class MainViewModel : ViewModelBase
         await Replay.RefreshSessionsAsync();
         CurrentPage = Replay;
     }
+
+    [RelayCommand]
+    private void ShowSettings() => CurrentPage = Settings;
 }
