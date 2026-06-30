@@ -1,12 +1,12 @@
 namespace FinishReplay.Services.Replay;
 
 /// <summary>
-/// Controls playback of a recorded clip: play/pause, frame stepping and position reporting.
-/// Implementation is backend-specific (e.g. LibVLCSharp, FFmpeg, or Avalonia media).
+/// Controls playback of a single recorded clip: play/pause, frame stepping and position reporting.
 ///
-/// TODO (multi-camera): extend to drive several streams from one master clock, asking
-/// <see cref="FinishReplay.Services.Timeline.TimelineEngine.ToCameraTime"/> for each camera's
-/// compensated position so latency-different cameras stay frame-aligned during synchronized replay.
+/// NOTE: currently unused. Replay is driven by <see cref="FinishReplay.ViewModels.ReplayViewModel"/>,
+/// which runs its own master clock and renders decoded JPEG frames (from <c>AviMjpegReader</c>) per
+/// camera, compensating each by its sync offset. Kept as the seam for a future H.264/RTSP decoder
+/// backend; wire it in behind the view model when real decoding is added.
 /// </summary>
 public interface IReplayEngine
 {

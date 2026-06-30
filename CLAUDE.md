@@ -20,8 +20,10 @@ dotnet run --project src/FinishReplay      # build + launch the app
 dotnet format FinishReplay.sln             # apply code style
 ```
 
-There is **no test project yet**. When one is added, prefer xUnit and run with
-`dotnet test` (single test: `dotnet test --filter "FullyQualifiedName~<Name>"`).
+Tests live in [tests/FinishReplay.Tests](tests/FinishReplay.Tests) (xUnit). Run with `dotnet test`
+(single test: `dotnet test --filter "FullyQualifiedName~<Name>"`). They cover the real capture path:
+MJPEG frame splitting, the AVI writer/reader round-trip, and end-to-end capture of a live MJPEG
+stream (served over a loopback socket) into an AVI and back — no camera or ffmpeg needed.
 
 In VS Code, F5 uses [.vscode/launch.json](.vscode/launch.json) (preLaunch task `build` from
 [.vscode/tasks.json](.vscode/tasks.json)). Recommended extensions: C# Dev Kit + Avalonia
@@ -40,18 +42,25 @@ must be `partial`.
   → `*.Views.XxxView` by name. Adding a page = add a `ViewModelBase`-derived VM + a matching
   `UserControl`; navigation is `MainViewModel.CurrentPage`.
 
-The view models talk only to **interfaces**; concrete backends are placeholders today:
+The view models talk only to **interfaces**. MJPEG capture/record/replay is **real and tested**;
+other transports and H.264 recording remain placeholders:
 
-| Concern | Interface | MVP implementation (stub) | Real work lives behind |
+| Concern | Interface | Status | Real work still behind |
 |---|---|---|---|
-| Camera discovery/open | `ICameraProvider` / `ICameraStream` | `Usb/Mjpeg/RtspCameraProvider` | per-transport capture (FFmpeg/MF/AVF/V4L2) |
+| Camera discovery/open | `ICameraProvider` / `ICameraStream` | **MJPEG real** (`MjpegCameraStream`, HTTP); USB/RTSP placeholders | USB (MF/AVF/V4L2), RTSP (FFmpeg) capture |
 | Provider aggregation | `CameraProviderRegistry` / `ICameraManager` | real | — |
-| Recording | `IRecordingEngine` + `IVideoBackend` | `RecordingEngine` + `FfmpegVideoBackend` | ffmpeg process + rolling pre/post buffer |
-| Replay | `IReplayEngine` | `ReplayEngine` (in-memory clock) | real decoder + multi-stream playback |
+| Live capture loop | `LiveCamera` | **real** — one loop feeds preview + recording | per-camera errors → UI/log |
+| Recording | `LiveCamera` + `AviMjpegWriter` | **MJPEG → AVI real**; `FfmpegVideoBackend`/`IRecordingEngine` still stubbed for state/H.264 | rolling pre/post buffer, ffmpeg MP4/H.264 |
+| Replay | `ReplayViewModel` clock + `AviMjpegReader` | **real for AVI** (decodes recorded JPEG frames, multi-cam synced); `IReplayEngine`/`ReplayEngine` now unused | H.264/RTSP decode |
 | Timeline/markers/offsets | `TimelineEngine` | real | — |
-| Timing devices | `ITimingProvider` | `ManualTimingProvider`, `AlgeTimy3TimingProvider` (serial stub) | TimY3 line parser |
+| Timing devices | `ITimingProvider` | `ManualTimingProvider` real; `AlgeTimy3TimingProvider` serial stub | TimY3 (prefer `Alge.TimyUsb` DLL — see provider TODO) |
 | Latency calibration | `ICameraLatencyCalibrationService`, `ITriggerOutput`, `IFlashDetector` | `Fake…Service`, `StubTriggerOutput`, `BrightnessFlashDetector` | LED trigger HW + OpenCV detection |
 | Sessions | `ISessionManager` | `SessionManager` (JSON) | — |
+
+MJPEG capture pipeline (all under `Services/Camera/Providers/Mjpeg` and `Services/Recording/Mjpeg`):
+`MjpegStreamReader` splits the HTTP multipart body into JPEG frames → `MjpegCameraStream` yields
+`VideoFrame`s → `LiveCamera` tees them to preview + `AviMjpegWriter` (Motion-JPEG AVI, no ffmpeg) →
+`AviMjpegReader` reads them back for replay. `VideoFrame.Format` is `Jpeg` or `Bgra32`.
 
 ### Key cross-cutting concepts (read these together)
 
