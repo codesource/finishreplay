@@ -50,18 +50,18 @@ public sealed class BrightnessFlashDetector : IFlashDetector
     }
 
     /// <summary>
-    /// Mean brightness (0..1) of the ROI. TODO: read the real pixel buffer/format; the placeholder
-    /// streams produce no pixels yet, so this returns 0 until the capture backend lands.
+    /// Mean brightness (0..1) of the ROI.
+    /// TODO: honour the ROI, and decode JPEG frames before sampling (today only raw BGRA frames are
+    /// averaged; JPEG frames return 0 until a decode step is added here).
     /// </summary>
     private static double MeanBrightness(VideoFrame frame, RegionOfInterest region)
     {
-        if (frame.Pixels.Length == 0)
+        if (frame.Data.Length == 0 || frame.Format != VideoFrameFormat.Bgra32)
             return 0;
 
-        // TODO: honour the ROI and the actual pixel format. For now, average raw bytes as a stand-in.
         long sum = 0;
-        foreach (var b in frame.Pixels)
+        foreach (var b in frame.Data)
             sum += b;
-        return sum / (double)frame.Pixels.Length / 255.0;
+        return sum / (double)frame.Data.Length / 255.0;
     }
 }
