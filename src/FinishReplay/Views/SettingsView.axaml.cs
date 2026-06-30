@@ -32,4 +32,24 @@ public partial class SettingsView : UserControl
         if (!string.IsNullOrEmpty(picked))
             vm.StorageDirectory = picked;
     }
+
+    private async void OnBrowseFfmpegClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm)
+            return;
+
+        var top = TopLevel.GetTopLevel(this);
+        if (top is null)
+            return;
+
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Locate the ffmpeg executable",
+            AllowMultiple = false,
+        });
+
+        var picked = files.FirstOrDefault()?.TryGetLocalPath();
+        if (!string.IsNullOrEmpty(picked))
+            vm.FfmpegPath = picked;
+    }
 }

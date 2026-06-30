@@ -60,6 +60,17 @@
                     </Grid>
                     <TextBlock Text="Each session writes one video file per camera plus a &lt;session&gt;.timing.json metadata file here."
                                Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" />
+
+                    <Separator />
+
+                    <TextBlock Text="FFmpeg executable (for RTSP / H.264 cameras)" FontWeight="SemiBold" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Grid.Column="0" Margin="0,0,6,0" Text="{Binding FfmpegPath}"
+                                 Watermark="ffmpeg (on PATH) or full path to ffmpeg.exe" />
+                        <Button Grid.Column="1" Content="Browse…" Click="OnBrowseFfmpegClick" />
+                    </Grid>
+                    <TextBlock Text="RTSP cameras are decoded by ffmpeg into JPEG frames. Leave as 'ffmpeg' if it is on your PATH."
+                               Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>
             </TabItem>
 

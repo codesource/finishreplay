@@ -102,8 +102,8 @@ public partial class RecordingViewModel : ViewModelBase
             var row = new CameraProfileRowViewModel(profile) { IsSelected = profile.Enabled };
             Cameras.Add(row);
 
-            // Real live capture currently exists for MJPEG; start preview immediately.
-            if (profile.SourceType == MjpegCameraProvider.Type)
+            // Real live capture exists for MJPEG (native) and RTSP (via ffmpeg); start preview now.
+            if (HasLiveCapture(profile.SourceType))
             {
                 var live = new LiveCamera(_registry, profile);
                 live.FrameReady += row.SubmitJpeg;
@@ -249,10 +249,13 @@ public partial class RecordingViewModel : ViewModelBase
         }
     }
 
+    private static bool HasLiveCapture(string sourceType) =>
+        sourceType is MjpegCameraProvider.Type or RtspCameraProvider.Type;
+
     private SessionCamera ToSessionCamera(CameraProfileRowViewModel row)
     {
-        var isMjpeg = row.SourceType == MjpegCameraProvider.Type;
-        var ext = isMjpeg ? ".avi" : ".mp4"; // MJPEG records a real AVI; others are placeholders
+        // MJPEG and RTSP capture real JPEG frames -> recorded as AVI; others are placeholders.
+        var ext = HasLiveCapture(row.SourceType) ? ".avi" : ".mp4";
         return new SessionCamera
         {
             CameraId = row.Id,

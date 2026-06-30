@@ -36,6 +36,7 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private double _preRecordSeconds;
     [ObservableProperty] private double _postRecordSeconds;
     [ObservableProperty] private string _storageDirectory = "";
+    [ObservableProperty] private string _ffmpegPath = "";
 
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _category = "";
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _discipline = "";
@@ -116,6 +117,7 @@ public partial class SettingsViewModel : ViewModelBase
         PreRecordSeconds = s.PreRecordSeconds;
         PostRecordSeconds = s.PostRecordSeconds;
         StorageDirectory = s.StorageDirectory;
+        FfmpegPath = s.FfmpegPath;
         Category = s.Category;
         Discipline = s.Discipline;
         SeriesNumber = s.SeriesNumber;
@@ -136,6 +138,7 @@ public partial class SettingsViewModel : ViewModelBase
         s.StorageDirectory = string.IsNullOrWhiteSpace(StorageDirectory)
             ? AppSettings.DefaultStorageDirectory
             : StorageDirectory;
+        s.FfmpegPath = string.IsNullOrWhiteSpace(FfmpegPath) ? "ffmpeg" : FfmpegPath;
         s.Category = Category;
         s.Discipline = Discipline;
         s.SeriesNumber = SeriesNumber;

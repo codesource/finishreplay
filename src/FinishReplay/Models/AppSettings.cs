@@ -23,6 +23,9 @@ public sealed class AppSettings
     /// </summary>
     public string FilenameFormat { get; set; } = "{date}-{category}-{discipline}-{serie}-{camera}";
 
+    /// <summary>Path to the ffmpeg executable (used for RTSP/H.264 capture). Bare name = search PATH.</summary>
+    public string FfmpegPath { get; set; } = "ffmpeg";
+
     // Current event context used when building filenames.
     public string Category { get; set; } = "";
     public string Discipline { get; set; } = "";

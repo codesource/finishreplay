@@ -28,11 +28,15 @@ public partial class MainViewModel : ViewModelBase
     public MainViewModel()
     {
         // --- composition root (swap for a DI container later) ---
+        ISettingsService settingsService = new SettingsService();
+        // Settings are small; load once at startup so all pages see the same instance.
+        settingsService.LoadAsync().GetAwaiter().GetResult();
+
         var providerRegistry = new CameraProviderRegistry(new ICameraProvider[]
         {
             new UsbCameraProvider(),
             new MjpegCameraProvider(),
-            new RtspCameraProvider(),
+            new RtspCameraProvider(() => settingsService.Current.FfmpegPath),
             // TODO: register OnvifCameraProvider and other transports here.
         });
         ICameraManager cameraManager = new CameraManager(providerRegistry);
@@ -42,10 +46,6 @@ public partial class MainViewModel : ViewModelBase
         ICameraLatencyCalibrationService calibrationService = new FakeCameraLatencyCalibrationService();
         var timelineEngine = new TimelineEngine();
         var manualTiming = new ManualTimingProvider();
-
-        ISettingsService settingsService = new SettingsService();
-        // Settings are small; load once at startup so all pages see the same instance.
-        settingsService.LoadAsync().GetAwaiter().GetResult();
 
         Recording = new RecordingViewModel(providerRegistry, recordingEngine, sessionManager, manualTiming, calibrationService, settingsService);
         Replay = new ReplayViewModel(sessionManager, timelineEngine);
