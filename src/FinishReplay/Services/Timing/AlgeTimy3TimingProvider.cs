@@ -4,28 +4,14 @@ using FinishReplay.Models;
 namespace FinishReplay.Services.Timing;
 
 /// <summary>
-/// Reads timing events from an ALGE TimY3 over USB/serial. Structural stub: the serial
-/// plumbing and connection lifecycle are in place, but the line parser is not implemented.
+/// Real ALGE TimY3 timing provider over the device's serial / USB-serial (CDC) port. Reads ASCII
+/// protocol lines and maps them to <see cref="TimingTrigger"/>s via <see cref="AlgeTimyProtocolParser"/>.
 ///
-/// IMPORTANT — preferred USB integration: ALGE ships an official managed wrapper
-/// <c>Alge.TimyUsb</c> (P/Invokes <c>AlgeTimyUsb.x64.dll</c> / <c>AlgeTimyUsb.x86.dll</c>); see the
-/// example under <c>docs/AlgeTimyUsbDLLExample/</c> (git-ignored). That API is event-based and is the
-/// recommended path for USB rather than raw serial:
-///   - lifecycle:   <c>timy.Start()</c> / <c>timy.Stop()</c>, <c>timy.Send("..\r")</c>
-///   - events:      <c>LineReceived</c> (e.Device.Id, e.Data), <c>DeviceConnected/Disconnected</c>,
-///                  <c>RawReceived</c> (raw lines start with "TIMY:"), <c>HeartbeatReceived</c>
-///   - parse:       map each <c>LineReceived</c> data line to a <see cref="TimingTrigger"/>.
-///   - caveats:     Windows-only, needs the correct x86/x64 native DLL resolved via
-///                  AppDomain.AssemblyResolve and the MS Visual C++ 2012 runtime.
-/// The serial path below remains valid when the Timy exposes a virtual COM port.
-///
-/// TODO:
-///   - Implement the DLL-backed provider above (e.g. a separate AlgeTimyUsbTimingProvider), OR
-///   - Confirm the TimY3 serial settings (baud rate, parity, line ending) and adjust below.
-///   - Implement <see cref="TryParse"/> to map a raw line to a <see cref="TimingTrigger"/>.
-///   - Map device channels to Start / Stop / Intermediate; everything else -> Unknown,
-///     always preserving the raw line in <see cref="TimingTrigger.RawMessage"/>.
-/// The real device is not required to build or run the app.
+/// USB-only note: ALGE also ships a native USB SDK (<c>Alge.TimyUsb</c>, see <c>docs/</c>), but that
+/// assembly is a .NET-Framework mixed-mode DLL and cannot be loaded by .NET 9. For USB-only devices
+/// that don't expose a COM port, host that DLL in a small .NET Framework "bridge" process and feed its
+/// <c>LineReceived</c> text into <see cref="AlgeTimyProtocolParser"/> (which is transport-agnostic).
+/// See [[alge-timy-usb]].
 /// </summary>
 public sealed class AlgeTimy3TimingProvider : ITimingProvider
 {
@@ -46,19 +32,24 @@ public sealed class AlgeTimy3TimingProvider : ITimingProvider
     public event EventHandler<TimingTrigger>? TriggerReceived;
     public event EventHandler<bool>? ConnectionChanged;
 
-    /// <summary>List serial ports the device might be on (for the UI port picker).</summary>
+    /// <summary>Serial ports the device might be on (for the UI port picker).</summary>
     public static IReadOnlyList<string> GetAvailablePorts() => SerialPort.GetPortNames();
 
-    public Task ConnectAsync(CancellationToken ct = default)
+    public Task ConnectAsync(CancellationToken cancellationToken = default)
     {
-        // TODO: verify parity/stop-bits/handshake for the TimY3.
-        _port = new SerialPort(_portName, _baudRate, Parity.None, 8, StopBits.One)
+        if (IsConnected)
+            return Task.CompletedTask;
+
+        var port = new SerialPort(_portName, _baudRate, Parity.None, 8, StopBits.One)
         {
-            NewLine = "\r\n",
+            NewLine = "\r",      // Timy terminates lines with CR
             ReadTimeout = 500,
+            Encoding = System.Text.Encoding.ASCII,
         };
-        _port.DataReceived += OnDataReceived;
-        _port.Open();
+        port.DataReceived += OnDataReceived;
+        port.Open();
+        _port = port;
+
         ConnectionChanged?.Invoke(this, true);
         return Task.CompletedTask;
     }
@@ -78,35 +69,27 @@ public sealed class AlgeTimy3TimingProvider : ITimingProvider
 
     private void OnDataReceived(object sender, SerialDataReceivedEventArgs e)
     {
-        if (_port is null) return;
+        var port = _port;
+        if (port is null) return;
 
         try
         {
-            var line = _port.ReadLine();
-            if (TryParse(line, out var trigger))
-                TriggerReceived?.Invoke(this, trigger);
-        }
-        catch (TimeoutException)
-        {
-            // No complete line yet; ignore and wait for more data.
-        }
-    }
+            // Drain all complete lines currently buffered.
+            while (true)
+            {
+                string line;
+                try { line = port.ReadLine(); }
+                catch (TimeoutException) { break; }
 
-    /// <summary>
-    /// Parse a raw TimY3 line into a <see cref="TimingTrigger"/>.
-    /// TODO: implement the real protocol. For now everything is reported as Unknown
-    /// so raw data still flows into metadata during bring-up.
-    /// </summary>
-    private static bool TryParse(string line, out TimingTrigger trigger)
-    {
-        trigger = new TimingTrigger
+                var trigger = AlgeTimyProtocolParser.Parse(line, DateTimeOffset.Now);
+                if (trigger is not null)
+                    TriggerReceived?.Invoke(this, trigger);
+            }
+        }
+        catch (Exception) when (!IsConnected)
         {
-            Type = TimingTriggerType.Unknown,
-            ReceivedAt = DateTimeOffset.Now,
-            VideoTime = TimeSpan.Zero, // TODO: derive from recording start once wired to the engine.
-            RawMessage = line,
-        };
-        return !string.IsNullOrWhiteSpace(line);
+            // Port closed underneath us during shutdown — ignore.
+        }
     }
 
     public void Dispose() => DisconnectAsync().GetAwaiter().GetResult();
