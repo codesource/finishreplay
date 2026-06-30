@@ -1,4 +1,5 @@
 using FinishReplay.Models;
+using FinishReplay.Services.Camera.Providers.Mjpeg;
 
 namespace FinishReplay.Services.Camera.Providers;
 
@@ -8,9 +9,8 @@ namespace FinishReplay.Services.Camera.Providers;
 /// no GOP / B-frame decode delay and flash detection is straightforward frame-by-frame.
 ///
 /// MJPEG sources are not auto-discoverable, so <see cref="DiscoverAsync"/> returns nothing;
-/// the user adds a URL manually via <see cref="CreateDevice"/>.
-///
-/// TODO: open the HTTP multipart stream and decode JPEG frames (HttpClient + JPEG decoder).
+/// the user adds a URL manually via <see cref="CreateDevice"/>. <see cref="OpenAsync"/> returns a
+/// live <see cref="MjpegCameraStream"/> reading the HTTP multipart stream.
 /// </summary>
 public sealed class MjpegCameraProvider : ICameraProvider
 {
@@ -26,9 +26,7 @@ public sealed class MjpegCameraProvider : ICameraProvider
 
     public Task<ICameraStream> OpenAsync(CameraDevice device, CameraSettings settings, CancellationToken cancellationToken = default)
     {
-        // TODO: connect to device.SourceUrl and decode the multipart JPEG stream.
-        var info = new CameraStreamInfo { Codec = "MJPEG" };
-        ICameraStream stream = new PlaceholderCameraStream(device, info);
+        ICameraStream stream = new MjpegCameraStream(device);
         return Task.FromResult(stream);
     }
 }
