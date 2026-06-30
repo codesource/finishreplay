@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FinishReplay.Models;
@@ -9,14 +10,19 @@ using FinishReplay.Services.Timeline;
 namespace FinishReplay.ViewModels;
 
 /// <summary>
-/// Replay screen: play/pause, frame stepping, a scrubbable timeline, timing markers
-/// drawn on the bar and a marker list that jumps playback to the selected moment.
+/// Replay screen. Browse sessions (newest first); loading one shows its markers and cameras. Several
+/// cameras can be selected and played at once — a single master clock drives them and each camera is
+/// time-shifted by its sync offset so they stay aligned. Markers are drawn on the timeline and in a
+/// list; clicking one seeks the master clock so every camera jumps together.
 /// </summary>
 public partial class ReplayViewModel : ViewModelBase
 {
+    private static readonly TimeSpan FrameInterval = TimeSpan.FromSeconds(1.0 / 30.0);
+
     private readonly IReplayEngine _replayEngine;
     private readonly ISessionManager _sessionManager;
     private readonly TimelineEngine _timelineEngine;
+    private readonly DispatcherTimer _clock;
 
     public ReplayViewModel(
         IReplayEngine replayEngine,
@@ -27,27 +33,22 @@ public partial class ReplayViewModel : ViewModelBase
         _sessionManager = sessionManager;
         _timelineEngine = timelineEngine;
 
-        _replayEngine.PositionChanged += (_, pos) => HandleEnginePosition(pos);
-        _replayEngine.Loaded += (_, _) => HandleEngineLoaded();
+        _replayEngine.PositionChanged += (_, pos) => OnEnginePosition(pos);
 
-        SessionsDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
-            "FinishReplay");
+        // Master clock: advances the engine position while playing so all cameras move together.
+        _clock = new DispatcherTimer { Interval = FrameInterval };
+        _clock.Tick += (_, _) => OnClockTick();
+
+        SessionsDirectory = AppSettings.DefaultStorageDirectory;
     }
 
-    public string SessionsDirectory { get; }
+    public string SessionsDirectory { get; private set; }
 
     public ObservableCollection<SessionInfo> RecentSessions { get; } = new();
-    public ObservableCollection<TimingTrigger> Markers { get; } = new();
+    public ObservableCollection<ReplayCameraViewModel> Cameras { get; } = new();
+    public ObservableCollection<ReplayMarkerViewModel> Markers { get; } = new();
 
-    /// <summary>Cameras in the open session, with their computed sync offsets.</summary>
-    public ObservableCollection<SessionCamera> Cameras { get; } = new();
-
-    [ObservableProperty]
-    private SessionInfo? _selectedSession;
-
-    [ObservableProperty]
-    private TimingTrigger? _selectedMarker;
+    [ObservableProperty] private SessionInfo? _selectedSession;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PositionText))]
@@ -59,121 +60,148 @@ public partial class ReplayViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(PositionFraction))]
     private TimeSpan _duration;
 
-    [ObservableProperty]
-    private bool _isPlaying;
+    [ObservableProperty] private bool _isPlaying;
+    [ObservableProperty] private bool _hasSession;
 
-    [ObservableProperty]
-    private bool _hasSession;
-
-    public string PositionText => Format(Position);
-    public string DurationText => Format(Duration);
-
-    /// <summary>0..1 progress for the timeline bar.</summary>
+    public string PositionText => Position.ToString(@"mm\:ss\.fff");
+    public string DurationText => Duration.ToString(@"mm\:ss\.fff");
     public double PositionFraction =>
         Duration > TimeSpan.Zero ? Position.TotalSeconds / Duration.TotalSeconds : 0;
 
+    /// <summary>Refresh the session list from disk (newest first).</summary>
     public async Task RefreshSessionsAsync()
     {
+        SessionsDirectory = AppSettings.DefaultStorageDirectory;
         RecentSessions.Clear();
         foreach (var s in _sessionManager.GetRecentSessions(SessionsDirectory))
             RecentSessions.Add(s);
-
         await Task.CompletedTask;
     }
 
     partial void OnSelectedSessionChanged(SessionInfo? value)
     {
         if (value is not null)
-            _ = OpenSessionAsync(value);
+            _ = LoadSessionAsync(value);
     }
 
-    private async Task OpenSessionAsync(SessionInfo session)
+    private async Task LoadSessionAsync(SessionInfo session)
     {
+        Pause();
+
         var metadata = await _sessionManager.LoadAsync(session.MetadataFilePath);
 
-        Markers.Clear();
         Cameras.Clear();
+        Markers.Clear();
         _timelineEngine.Clear();
 
-        if (metadata is not null)
+        if (metadata is null)
         {
-            // Master timeline plays the reference camera; others are offset-compensated.
-            var sessionDir = Path.GetDirectoryName(session.MetadataFilePath) ?? "";
-            var primary = metadata.Cameras.FirstOrDefault();
-            var videoPath = primary is not null
-                ? Path.Combine(sessionDir, primary.VideoFile)
-                : "";
-
-            await _replayEngine.LoadAsync(videoPath);
-
-            _timelineEngine.Set(metadata.TimingMarkers);
-            _timelineEngine.SetCameraOffsets(metadata.Cameras.Select(c => new CameraSyncOffset
-            {
-                CameraId = c.CameraId,
-                OffsetMs = c.SyncOffsetMs,
-                Source = "calibrated",
-            }));
-
-            foreach (var m in metadata.TimingMarkers)
-                Markers.Add(m);
-            foreach (var c in metadata.Cameras)
-                Cameras.Add(c);
-        }
-        else
-        {
-            await _replayEngine.LoadAsync("");
+            HasSession = false;
+            return;
         }
 
+        // Load the reference (first) camera into the engine to establish the master duration.
+        var sessionDir = Path.GetDirectoryName(session.MetadataFilePath) ?? "";
+        var primary = metadata.Cameras.FirstOrDefault();
+        await _replayEngine.LoadAsync(primary is not null ? Path.Combine(sessionDir, primary.VideoFile) : "");
+
+        Duration = _replayEngine.Duration;
+        Position = TimeSpan.Zero;
+
+        _timelineEngine.SetCameraOffsets(metadata.Cameras.Select(c => new CameraSyncOffset
+        {
+            CameraId = c.CameraId,
+            OffsetMs = c.SyncOffsetMs,
+            Source = "calibrated",
+        }));
+
+        foreach (var c in metadata.Cameras)
+            Cameras.Add(new ReplayCameraViewModel(c));
+
+        foreach (var m in metadata.TimingMarkers)
+            Markers.Add(new ReplayMarkerViewModel(m, FractionFor(m.VideoTime)));
+
+        UpdateCameraTimes();
         HasSession = true;
     }
 
     [RelayCommand]
     private void PlayPause()
     {
-        if (_replayEngine.IsPlaying)
-            _replayEngine.Pause();
-        else
-            _replayEngine.Play();
+        if (!HasSession) return;
 
-        IsPlaying = _replayEngine.IsPlaying;
+        if (_replayEngine.IsPlaying)
+        {
+            Pause();
+        }
+        else
+        {
+            if (Position >= Duration)
+                _replayEngine.Seek(TimeSpan.Zero);
+            _replayEngine.Play();
+            _clock.Start();
+            IsPlaying = true;
+        }
     }
 
     [RelayCommand]
     private void StepForward()
     {
+        Pause();
         _replayEngine.StepForward();
-        IsPlaying = _replayEngine.IsPlaying;
     }
 
     [RelayCommand]
     private void StepBackward()
     {
+        Pause();
         _replayEngine.StepBackward();
-        IsPlaying = _replayEngine.IsPlaying;
     }
 
+    /// <summary>Seek the master clock to a marker; every selected camera jumps with it.</summary>
     [RelayCommand]
-    private void JumpToMarker(TimingTrigger? marker)
+    private void JumpToMarker(ReplayMarkerViewModel? marker)
     {
         if (marker is null) return;
+        Pause();
         _replayEngine.Seek(marker.VideoTime);
     }
 
-    /// <summary>Fraction (0..1) of a marker along the timeline, for positioning its tick.</summary>
-    public double MarkerFraction(TimingTrigger marker) => TimelineEngine.ToFraction(marker, Duration);
+    private void Pause()
+    {
+        _clock.Stop();
+        _replayEngine.Pause();
+        IsPlaying = false;
+    }
 
-    private void HandleEnginePosition(TimeSpan pos)
+    private void OnClockTick()
+    {
+        if (!_replayEngine.IsPlaying) return;
+
+        var next = _replayEngine.Position + FrameInterval;
+        if (next >= Duration)
+        {
+            _replayEngine.Seek(Duration);
+            Pause();
+        }
+        else
+        {
+            _replayEngine.Seek(next);
+        }
+    }
+
+    private void OnEnginePosition(TimeSpan pos)
     {
         Position = pos;
-        IsPlaying = _replayEngine.IsPlaying;
+        UpdateCameraTimes();
     }
 
-    private void HandleEngineLoaded()
+    private void UpdateCameraTimes()
     {
-        Duration = _replayEngine.Duration;
-        Position = _replayEngine.Position;
-        IsPlaying = _replayEngine.IsPlaying;
+        foreach (var cam in Cameras)
+            cam.UpdateTime(Position);
     }
 
-    private static string Format(TimeSpan t) => t.ToString(@"mm\:ss\.fff");
+    private double FractionFor(TimeSpan videoTime) =>
+        Duration > TimeSpan.Zero ? Math.Clamp(videoTime.TotalSeconds / Duration.TotalSeconds, 0, 1) : 0;
 }

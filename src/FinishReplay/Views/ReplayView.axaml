@@ -3,59 +3,25 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:FinishReplay.ViewModels"
-             xmlns:models="using:FinishReplay.Models"
+             xmlns:conv="using:FinishReplay.Converters"
              xmlns:session="using:FinishReplay.Services.Session"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="660"
              x:Class="FinishReplay.Views.ReplayView"
              x:DataType="vm:ReplayViewModel">
 
-    <Grid ColumnDefinitions="*,300" Margin="16">
+    <UserControl.Resources>
+        <conv:FractionWidthConverter x:Key="FractionWidth" />
+    </UserControl.Resources>
 
-        <!-- Left: player + timeline -->
-        <DockPanel Grid.Column="0" Margin="0,0,16,0">
+    <Grid ColumnDefinitions="280,*" Margin="16">
 
-            <!-- Transport + timeline -->
-            <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" Spacing="10">
+        <!-- Left: sessions, cameras, markers -->
+        <Grid Grid.Column="0" RowDefinitions="*,Auto,*" Margin="0,0,16,0">
 
-                <!-- Timeline bar with progress fill and marker ticks -->
-                <Border Background="#E5E7EB" Height="28" CornerRadius="4" ClipToBounds="True">
-                    <Grid>
-                        <ProgressBar Minimum="0" Maximum="1" Value="{Binding PositionFraction}"
-                                     Background="Transparent" Foreground="#93C5FD" />
-                        <!-- TODO: render marker ticks positioned along the bar (Canvas.Left = fraction * width).
-                             For the MVP the markers are clickable in the list on the right. -->
-                    </Grid>
-                </Border>
-
-                <Grid ColumnDefinitions="Auto,*,Auto">
-                    <TextBlock Grid.Column="0" Text="{Binding PositionText}" FontFamily="Consolas" />
-                    <TextBlock Grid.Column="2" Text="{Binding DurationText}" FontFamily="Consolas"
-                               Foreground="#6B7280" />
-                </Grid>
-
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                    <Button Content="⏮ Frame" Command="{Binding StepBackwardCommand}" />
-                    <Button Content="Play / Pause" Command="{Binding PlayPauseCommand}" Padding="16,8" />
-                    <Button Content="Frame ⏭" Command="{Binding StepForwardCommand}" />
-                </StackPanel>
-            </StackPanel>
-
-            <!-- Video surface placeholder -->
-            <Border Background="#111827" CornerRadius="6" MinHeight="320">
-                <TextBlock Text="Video player"
-                           Foreground="#9CA3AF" FontSize="20"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
-        </DockPanel>
-
-        <!-- Right: sessions + markers + camera sync -->
-        <DockPanel Grid.Column="1" LastChildFill="False">
-
-            <StackPanel DockPanel.Dock="Top" Spacing="6">
-                <TextBlock Text="Recent sessions" FontWeight="SemiBold" />
-                <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Height="160">
-                    <ListBox ItemsSource="{Binding RecentSessions}"
-                             SelectedItem="{Binding SelectedSession}">
+            <DockPanel Grid.Row="0">
+                <TextBlock DockPanel.Dock="Top" Text="Sessions" FontWeight="SemiBold" Margin="0,0,0,6" />
+                <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6">
+                    <ListBox ItemsSource="{Binding RecentSessions}" SelectedItem="{Binding SelectedSession}">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="session:SessionInfo">
                                 <StackPanel Spacing="2">
@@ -67,50 +33,157 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
                 </Border>
-            </StackPanel>
+            </DockPanel>
 
-            <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,16,0,0">
-                <TextBlock Text="Markers" FontWeight="SemiBold" />
-                <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6">
-                    <ListBox ItemsSource="{Binding Markers}"
-                             SelectedItem="{Binding SelectedMarker}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="models:TimingTrigger">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="{Binding Type}" FontWeight="SemiBold" Width="92" />
-                                        <TextBlock Text="{Binding VideoTime, StringFormat='mm\\:ss\\.fff'}"
-                                                   Foreground="#6B7280" />
-                                    </StackPanel>
-                                    <Button Grid.Column="1" Content="Jump"
-                                            Command="{Binding $parent[ListBox].((vm:ReplayViewModel)DataContext).JumpToMarkerCommand}"
-                                            CommandParameter="{Binding}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Border>
-            </StackPanel>
-
-            <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,16,0,0">
-                <TextBlock Text="Cameras (sync offset)" FontWeight="SemiBold" />
+            <StackPanel Grid.Row="1" Spacing="6" Margin="0,12">
+                <TextBlock Text="Cameras (select to view)" FontWeight="SemiBold" />
                 <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6">
                     <ItemsControl ItemsSource="{Binding Cameras}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="models:SessionCamera">
-                                <Grid ColumnDefinitions="*,Auto" Margin="8,4">
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding SourceType}" Foreground="#6B7280" FontSize="12" />
+                            <DataTemplate x:DataType="vm:ReplayCameraViewModel">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="8,4">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Text="{Binding SourceType}" Foreground="#6B7280" FontSize="11" />
                                     </StackPanel>
-                                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
-                                               Text="{Binding SyncOffsetMs, StringFormat='+{0:0.#} ms'}" />
+                                    <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="#2563EB"
+                                               FontSize="12" Text="{Binding SyncOffsetMs, StringFormat='+{0:0.#} ms'}" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </Border>
             </StackPanel>
+
+            <DockPanel Grid.Row="2">
+                <TextBlock DockPanel.Dock="Top" Text="Markers" FontWeight="SemiBold" Margin="0,0,0,6" />
+                <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6">
+                    <ListBox ItemsSource="{Binding Markers}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ReplayMarkerViewModel">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Content="Jump"
+                                            Command="{Binding $parent[ItemsControl].((vm:ReplayViewModel)DataContext).JumpToMarkerCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </DockPanel>
+        </Grid>
+
+        <!-- Right: camera tiles + timeline + transport -->
+        <DockPanel Grid.Column="1">
+
+            <!-- Transport + timeline -->
+            <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" Spacing="10">
+
+                <!-- Timeline: progress fill, marker ticks, position indicator -->
+                <Grid x:Name="Timeline" Height="44">
+                    <Border Background="#E5E7EB" CornerRadius="4" />
+
+                    <Rectangle HorizontalAlignment="Left" Fill="#BFDBFE" RadiusX="4" RadiusY="4">
+                        <Rectangle.Width>
+                            <MultiBinding Converter="{StaticResource FractionWidth}">
+                                <Binding Path="PositionFraction" />
+                                <Binding Path="Bounds.Width" ElementName="Timeline" />
+                            </MultiBinding>
+                        </Rectangle.Width>
+                    </Rectangle>
+
+                    <!-- Reflection bindings here: the ContentPresenter style binds per-item Fraction. -->
+                    <ItemsControl ItemsSource="{Binding Markers}" x:CompileBindings="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.Styles>
+                            <Style Selector="ContentPresenter">
+                                <Setter Property="Canvas.Left">
+                                    <Setter.Value>
+                                        <MultiBinding Converter="{StaticResource FractionWidth}">
+                                            <Binding Path="Fraction" />
+                                            <Binding Path="Bounds.Width" RelativeSource="{RelativeSource AncestorType=Canvas}" />
+                                        </MultiBinding>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ItemsControl.Styles>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="4" Height="44" Padding="0" Background="#DC2626"
+                                        BorderThickness="0" Cursor="Hand"
+                                        ToolTip.Tip="{Binding Label}"
+                                        Command="{Binding DataContext.JumpToMarkerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Canvas>
+                        <Rectangle Width="2" Height="44" Fill="#111827">
+                            <Canvas.Left>
+                                <MultiBinding Converter="{StaticResource FractionWidth}">
+                                    <Binding Path="PositionFraction" />
+                                    <Binding Path="Bounds.Width" ElementName="Timeline" />
+                                </MultiBinding>
+                            </Canvas.Left>
+                        </Rectangle>
+                    </Canvas>
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding PositionText}" FontFamily="Consolas" />
+                    <TextBlock Grid.Column="2" Text="{Binding DurationText}" FontFamily="Consolas" Foreground="#6B7280" />
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                    <Button Content="⏮ Frame" Command="{Binding StepBackwardCommand}" />
+                    <Button Content="Play / Pause" Command="{Binding PlayPauseCommand}" Padding="16,8" />
+                    <Button Content="Frame ⏭" Command="{Binding StepForwardCommand}" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Selected camera tiles (synchronized) -->
+            <Border Background="#0B1220" CornerRadius="6" Padding="8">
+                <Grid>
+                    <ItemsControl ItemsSource="{Binding Cameras}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ReplayCameraViewModel">
+                                <Border Width="300" Height="210" Margin="6" CornerRadius="6"
+                                        Background="#111827" BorderBrush="#1F2937" BorderThickness="1"
+                                        IsVisible="{Binding IsSelected}">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Bottom" Background="#0B1220" Padding="8,4">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="#E5E7EB" />
+                                                <TextBlock Grid.Column="1" Text="{Binding CameraTimeText}"
+                                                           Foreground="#60A5FA" FontFamily="Consolas" />
+                                            </Grid>
+                                        </Border>
+                                        <TextBlock Text="video" Foreground="#374151" FontSize="22"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="Select a session, then choose cameras to view."
+                               Foreground="#9CA3AF" FontSize="16"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsVisible="{Binding !HasSession}" />
+                </Grid>
+            </Border>
         </DockPanel>
     </Grid>
 
