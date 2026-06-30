@@ -102,7 +102,7 @@ public partial class RecordingViewModel : ViewModelBase
             var row = new CameraProfileRowViewModel(profile) { IsSelected = profile.Enabled };
             Cameras.Add(row);
 
-            // Real live capture exists for MJPEG (native) and RTSP (via ffmpeg); start preview now.
+            // Real live capture: MJPEG (native HTTP), RTSP and USB (via ffmpeg). Start preview now.
             if (HasLiveCapture(profile.SourceType))
             {
                 var live = new LiveCamera(_registry, profile);
@@ -250,7 +250,7 @@ public partial class RecordingViewModel : ViewModelBase
     }
 
     private static bool HasLiveCapture(string sourceType) =>
-        sourceType is MjpegCameraProvider.Type or RtspCameraProvider.Type;
+        sourceType is MjpegCameraProvider.Type or RtspCameraProvider.Type or UsbCameraProvider.Type;
 
     private SessionCamera ToSessionCamera(CameraProfileRowViewModel row)
     {

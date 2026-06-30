@@ -1,36 +1,86 @@
 using FinishReplay.Models;
+using FinishReplay.Services.Camera.Providers.Ffmpeg;
+using FinishReplay.Services.Camera.Providers.Usb;
 
 namespace FinishReplay.Services.Camera.Providers;
 
 /// <summary>
-/// Placeholder provider for local USB/webcam devices.
-///
-/// TODO: enumerate real devices and open capture per platform:
-///   - Windows: Media Foundation / DirectShow (or ffmpeg "dshow").
-///   - macOS:   AVFoundation.
-///   - Linux:   V4L2 (/dev/video*).
+/// Provider for local USB / webcam devices via ffmpeg's platform capture inputs (dshow on Windows,
+/// avfoundation on macOS, v4l2 on Linux). Devices are enumerated from ffmpeg's <c>-list_devices</c>
+/// output (or <c>/dev/video*</c> on Linux) and captured as MJPEG, flowing through the shared pipeline
+/// for preview, AVI recording and replay. Requires ffmpeg (configurable path / PATH).
 /// </summary>
 public sealed class UsbCameraProvider : ICameraProvider
 {
     public const string Type = "USB";
+
+    private readonly Func<string> _ffmpegPath;
+
+    public UsbCameraProvider(Func<string>? ffmpegPath = null)
+    {
+        _ffmpegPath = ffmpegPath ?? (() => "ffmpeg");
+    }
+
     public string ProviderName => Type;
 
-    public Task<IReadOnlyList<CameraDevice>> DiscoverAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<CameraDevice>> DiscoverAsync(CancellationToken cancellationToken = default)
     {
-        // TODO: real enumeration. Placeholder devices keep the selector populated.
-        IReadOnlyList<CameraDevice> devices = new[]
+        var platform = UsbPlatformInfo.Current;
+        if (platform == UsbPlatform.Linux)
+            return EnumerateV4l2();
+
+        var exe = FfmpegLocator.Resolve(_ffmpegPath());
+        if (exe is null)
+            return Array.Empty<CameraDevice>(); // ffmpeg required to enumerate dshow/avfoundation
+
+        var listArgs = FfmpegArguments.ListUsbDevices(platform);
+        if (listArgs.Count == 0)
+            return Array.Empty<CameraDevice>();
+
+        string stderr;
+        try
         {
-            new CameraDevice("usb:0", "USB Camera 0 (placeholder)") { ProviderName = Type, SourceType = Type },
-            new CameraDevice("usb:1", "USB Camera 1 (placeholder)") { ProviderName = Type, SourceType = Type },
-        };
-        return Task.FromResult(devices);
+            stderr = await FfmpegProbe.GetStderrAsync(exe, listArgs, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            return Array.Empty<CameraDevice>();
+        }
+
+        var parsed = platform == UsbPlatform.Windows
+            ? UsbDeviceParser.ParseDShow(stderr)
+            : UsbDeviceParser.ParseAvFoundation(stderr);
+
+        return parsed
+            .Select(d => new CameraDevice(d.Id, d.Name) { ProviderName = Type, SourceType = Type })
+            .ToList();
     }
 
     public Task<ICameraStream> OpenAsync(CameraDevice device, CameraSettings settings, CancellationToken cancellationToken = default)
     {
-        // TODO: open the real device with the requested settings.
-        var info = new CameraStreamInfo { Width = settings.Width ?? 1920, Height = settings.Height ?? 1080, FrameRate = settings.FrameRate ?? 30, Codec = "RAW" };
-        ICameraStream stream = new PlaceholderCameraStream(device, info);
+        var platform = UsbPlatformInfo.Current;
+        var exe = FfmpegLocator.Resolve(_ffmpegPath())
+            ?? throw new InvalidOperationException(
+                "FFmpeg was not found. Set the FFmpeg path in Settings, or add ffmpeg to your PATH, to capture USB cameras.");
+
+        var fps = (int)Math.Round(settings.FrameRate ?? 30);
+
+        // AVFoundation opens by index; ":none" selects the video device with no audio.
+        var deviceId = platform == UsbPlatform.MacOS ? $"{device.Id}:none" : device.Id;
+        var args = FfmpegArguments.ForUsbToMjpeg(platform, deviceId, fps);
+
+        ICameraStream stream = new FfmpegMjpegProcessStream(device, _ => new FfmpegProcess(exe, args));
         return Task.FromResult(stream);
+    }
+
+    private static IReadOnlyList<CameraDevice> EnumerateV4l2()
+    {
+        if (!Directory.Exists("/dev"))
+            return Array.Empty<CameraDevice>();
+
+        return Directory.GetFiles("/dev", "video*")
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .Select(path => new CameraDevice(path, path) { ProviderName = Type, SourceType = Type })
+            .ToList();
     }
 }
