@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FinishReplay.Models;
 using FinishReplay.Services.Camera;
 using FinishReplay.Services.Camera.Providers;
+using FinishReplay.Services.Camera.Providers.Ffmpeg;
 using FinishReplay.Services.Naming;
 using FinishReplay.Services.Settings;
 
@@ -40,7 +42,41 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private double _postRecordSeconds;
     [ObservableProperty] private string _storageDirectory = "";
     [ObservableProperty] private string _ffmpegPath = "";
+    [ObservableProperty] private string _ffmpegStatus = "";
     [ObservableProperty] private RecordingMode _recordingMode;
+
+    partial void OnFfmpegPathChanged(string value) => RefreshFfmpegStatus();
+
+    private void RefreshFfmpegStatus()
+    {
+        var resolved = FfmpegLocator.Resolve(string.IsNullOrWhiteSpace(FfmpegPath) ? "ffmpeg" : FfmpegPath);
+        FfmpegStatus = resolved is not null
+            ? $"✓ Found: {resolved}"
+            : "✗ Not found — RTSP and USB cameras need ffmpeg. Install it or set the path above.";
+    }
+
+    [RelayCommand]
+    private void DetectFfmpeg()
+    {
+        var resolved = FfmpegLocator.Resolve(string.IsNullOrWhiteSpace(FfmpegPath) ? "ffmpeg" : FfmpegPath);
+        if (resolved is not null)
+            FfmpegPath = resolved; // persist the discovered absolute path
+        else
+            RefreshFfmpegStatus();
+    }
+
+    [RelayCommand]
+    private static void OpenFfmpegDownload()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("https://ffmpeg.org/download.html") { UseShellExecute = true });
+        }
+        catch
+        {
+            // ignore — user can browse manually
+        }
+    }
 
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _category = "";
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _discipline = "";
@@ -133,6 +169,8 @@ public partial class SettingsViewModel : ViewModelBase
         Cameras.Clear();
         foreach (var profile in s.Cameras)
             Cameras.Add(new CameraSettingRowViewModel(profile));
+
+        RefreshFfmpegStatus();
     }
 
     private void ApplyToSettings()

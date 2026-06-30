@@ -57,6 +57,12 @@ other transports and H.264 recording remain placeholders:
 | Latency calibration | `ICameraLatencyCalibrationService`, `ITriggerOutput`, `IFlashDetector` | `Fake…Service`, `StubTriggerOutput`, `BrightnessFlashDetector` | LED trigger HW + OpenCV detection |
 | Sessions | `ISessionManager` | `SessionManager` (JSON) | — |
 
+FFmpeg is **auto-detected** by `FfmpegLocator` (RTSP/USB/passthrough/mp4-replay all use it): it searches
+the configured path, the app's own folder + a bundled `ffmpeg/` subfolder (the packaging drop-point),
+the app-data ffmpeg dir, PATH, and common install locations (winget/choco/scoop/Program Files,
+Homebrew, `/usr/local`). `ResolveCore` is a pure, unit-tested function. Settings shows the resolved
+path and offers Detect / Get-FFmpeg. To bundle, drop the binary in `<AppBase>/ffmpeg/` at packaging time.
+
 MJPEG capture pipeline (all under `Services/Camera/Providers/Mjpeg` and `Services/Recording/Mjpeg`):
 `MjpegStreamReader` splits the HTTP multipart body into JPEG frames → `MjpegCameraStream` yields
 `VideoFrame`s → `LiveCamera` tees them to preview + `AviMjpegWriter` (Motion-JPEG AVI, no ffmpeg) →

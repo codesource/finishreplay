@@ -71,13 +71,19 @@
 
                     <Separator />
 
-                    <TextBlock Text="FFmpeg executable (for RTSP / H.264 cameras)" FontWeight="SemiBold" />
-                    <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="FFmpeg executable (for RTSP / USB / H.264 cameras)" FontWeight="SemiBold" />
+                    <Grid ColumnDefinitions="*,Auto,Auto">
                         <TextBox Grid.Column="0" Margin="0,0,6,0" Text="{Binding FfmpegPath}"
-                                 Watermark="ffmpeg (on PATH) or full path to ffmpeg.exe" />
-                        <Button Grid.Column="1" Content="Browse…" Click="OnBrowseFfmpegClick" />
+                                 Watermark="ffmpeg (auto-detected) or full path to ffmpeg.exe" />
+                        <Button Grid.Column="1" Margin="0,0,6,0" Content="Detect" Command="{Binding DetectFfmpegCommand}" />
+                        <Button Grid.Column="2" Content="Browse…" Click="OnBrowseFfmpegClick" />
                     </Grid>
-                    <TextBlock Text="RTSP cameras are decoded by ffmpeg into JPEG frames. Leave as 'ffmpeg' if it is on your PATH."
+                    <TextBlock Text="{Binding FfmpegStatus}" TextWrapping="Wrap" FontSize="12" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Don't have it?" Foreground="#6B7280" FontSize="12" VerticalAlignment="Center" />
+                        <Button Content="Get FFmpeg" Command="{Binding OpenFfmpegDownloadCommand}" />
+                    </StackPanel>
+                    <TextBlock Text="Auto-detected from the app folder, PATH and common install locations (winget / chocolatey / scoop / Homebrew). A bundled copy can be placed in an 'ffmpeg' folder next to the app."
                                Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>
             </TabItem>
