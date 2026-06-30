@@ -9,9 +9,7 @@ using Xunit;
 
 namespace FinishReplay.Tests;
 
-/// <summary>Verifies the LiveCamera controller the UI drives: it both raises preview frames and
-/// tees the same frames into a recorded AVI, from a live HTTP MJPEG stream.</summary>
-public class LiveCameraTests
+public class LiveCameraPreRollTests
 {
     private static byte[] FakeJpeg(byte fill, int payload)
     {
@@ -47,47 +45,42 @@ public class LiveCameraTests
     }
 
     [Fact]
-    public async Task Raises_preview_frames_and_records_them_to_avi()
+    public async Task Recording_started_after_the_stream_still_captures_the_pre_roll_buffer()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var sent = new List<byte[]> { FakeJpeg(0x10, 50), FakeJpeg(0x20, 51), FakeJpeg(0x30, 77) };
+        var sent = new List<byte[]> { FakeJpeg(0x11, 40), FakeJpeg(0x22, 41), FakeJpeg(0x33, 60), FakeJpeg(0x44, 25) };
         var (port, serverDone) = StartMjpegServer(sent, cts.Token);
 
         var registry = new CameraProviderRegistry(new ICameraProvider[] { new MjpegCameraProvider() });
         var profile = new CameraProfile
         {
-            Id = "cam-a",
-            DisplayName = "Cam A",
+            Id = "cam",
             SourceType = MjpegCameraProvider.Type,
             SourceUrl = $"http://127.0.0.1:{port}/video",
         };
 
-        var previewFrames = new System.Collections.Concurrent.ConcurrentQueue<byte[]>();
-        var live = new LiveCamera(registry, profile);
-        live.FrameReady += previewFrames.Enqueue;
+        // Large pre-roll window so all streamed frames stay buffered.
+        var live = new LiveCamera(registry, profile) { PreRecordSeconds = 100 };
+        live.Start();
 
-        var path = Path.Combine(Path.GetTempPath(), $"finishreplay_live_{Guid.NewGuid():N}.avi");
+        var path = Path.Combine(Path.GetTempPath(), $"finishreplay_preroll_{Guid.NewGuid():N}.avi");
         try
         {
-            live.StartRecording(path, fps: 30, FinishReplay.Models.RecordingMode.Transcode, postRecordSeconds: 0);
-            live.Start();
-
-            // Wait for the controller to drain the (finite) stream before stopping it.
-            while (previewFrames.Count < sent.Count && !cts.IsCancellationRequested)
+            // Wait until every frame is buffered (and the server has finished).
+            while (live.BufferedFrameCount < sent.Count && !cts.IsCancellationRequested)
                 await Task.Delay(20, cts.Token);
-
-            await live.StopRecordingAsync(); // finalize the AVI while frames are captured
-            await live.DisposeAsync();       // stop the read loop
             await serverDone;
 
-            // Preview path saw every frame...
-            Assert.Equal(sent.Count, previewFrames.Count);
-            Assert.Equal(sent[0], previewFrames.First());
+            // Start recording AFTER the stream ended: only the pre-roll buffer can supply frames.
+            live.StartRecording(path, fps: 30, RecordingMode.Transcode, postRecordSeconds: 0);
+            var written = await live.StopRecordingAsync();
+            await live.DisposeAsync();
 
-            // ...and the recording path wrote a real, readable AVI with the same frames.
+            Assert.Equal(sent.Count, written);
+
             using var file = File.OpenRead(path);
             var recorded = AviMjpegReader.ReadFrames(file);
-            Assert.Equal(sent, recorded);
+            Assert.Equal(sent, recorded); // the clip is exactly the buffered pre-roll
         }
         finally
         {

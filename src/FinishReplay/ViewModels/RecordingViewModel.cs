@@ -69,7 +69,16 @@ public partial class RecordingViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanStartRecording))]
     [NotifyPropertyChangedFor(nameof(CanStopRecording))]
+    [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopRecordingCommand))]
     private bool _isRecording;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartRecording))]
+    [NotifyPropertyChangedFor(nameof(CanStopRecording))]
+    [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopRecordingCommand))]
+    private bool _isFinishing;
 
     [ObservableProperty] private string _statusText = "Idle";
     [ObservableProperty] private string _timingStatusText = "Timing: manual";
@@ -78,8 +87,8 @@ public partial class RecordingViewModel : ViewModelBase
 
     public string StorageDirectory => _settings.Current.StorageDirectory;
 
-    public bool CanStartRecording => SelectedCameras.Count > 0 && !IsRecording;
-    public bool CanStopRecording => IsRecording;
+    public bool CanStartRecording => SelectedCameras.Count > 0 && !IsRecording && !IsFinishing;
+    public bool CanStopRecording => IsRecording && !IsFinishing;
     public bool HasCameras => Cameras.Count > 0;
 
     private List<CameraProfileRowViewModel> SelectedCameras =>
@@ -105,7 +114,10 @@ public partial class RecordingViewModel : ViewModelBase
             // Real live capture: MJPEG (native HTTP), RTSP and USB (via ffmpeg). Start preview now.
             if (HasLiveCapture(profile.SourceType))
             {
-                var live = new LiveCamera(_registry, profile, () => _settings.Current.FfmpegPath);
+                var live = new LiveCamera(_registry, profile, () => _settings.Current.FfmpegPath)
+                {
+                    PreRecordSeconds = s.PreRecordSeconds, // keep this much rolling pre-roll ready
+                };
                 live.FrameReady += row.SubmitJpeg;
                 live.Start();
                 _live[profile.Id] = live;
@@ -180,11 +192,12 @@ public partial class RecordingViewModel : ViewModelBase
         Markers.Clear();
 
         // Begin real recording on each capture-capable camera; flips engine state for the UI.
+        // Each camera prepends its rolling pre-roll buffer automatically (transcode).
         var mode = s.RecordingMode;
         foreach (var (row, cam) in selected.Zip(_currentSession.Cameras))
         {
             if (_live.TryGetValue(row.Id, out var live))
-                live.StartRecording(Path.Combine(s.StorageDirectory, cam.VideoFile), CaptureFps, mode);
+                live.StartRecording(Path.Combine(s.StorageDirectory, cam.VideoFile), CaptureFps, mode, s.PostRecordSeconds);
         }
 
         await _recordingEngine.StartAsync(selected.Select(c => c.Profile.ToDevice()).ToList());
@@ -195,8 +208,14 @@ public partial class RecordingViewModel : ViewModelBase
     {
         if (_currentSession is null) return;
 
-        foreach (var live in _live.Values)
-            live.StopRecording();
+        // Honour the post-record tail: each camera keeps capturing for PostRecord seconds, then
+        // finalizes. Surface that as a "Finishing…" state until every clip is closed.
+        IsFinishing = true;
+        StatusText = _settings.Current.PostRecordSeconds > 0
+            ? $"Finishing… (+{_settings.Current.PostRecordSeconds:0}s)"
+            : "Finishing…";
+
+        await Task.WhenAll(_live.Values.Select(live => live.StopRecordingAsync()));
 
         await _recordingEngine.StopAsync();
 
@@ -207,6 +226,7 @@ public partial class RecordingViewModel : ViewModelBase
         await _settings.SaveAsync();
 
         _currentSession = null;
+        IsFinishing = false;
     }
 
     [RelayCommand] private void TriggerStart() => Emit(TimingTriggerType.Start);
@@ -215,9 +235,15 @@ public partial class RecordingViewModel : ViewModelBase
 
     private void Emit(TimingTriggerType type)
     {
-        var videoTime = _currentSession is null
-            ? TimeSpan.Zero
-            : DateTimeOffset.Now - _currentSession.CreatedAt;
+        var videoTime = TimeSpan.Zero;
+        if (_currentSession is not null)
+        {
+            videoTime = DateTimeOffset.Now - _currentSession.CreatedAt;
+            // The transcode clip starts PreRecord seconds before the recording start (the pre-roll),
+            // so shift marker times forward to stay aligned with the clip's frame 0.
+            if (_settings.Current.RecordingMode == RecordingMode.Transcode)
+                videoTime += TimeSpan.FromSeconds(_settings.Current.PreRecordSeconds);
+        }
         _manualTiming.Emit(type, videoTime < TimeSpan.Zero ? TimeSpan.Zero : videoTime, DateTimeOffset.Now);
     }
 
