@@ -25,3 +25,6 @@ artifacts/
 # OS
 .DS_Store
 Thumbs.db
+
+# Documentation (generated/local notes)
+docs/
