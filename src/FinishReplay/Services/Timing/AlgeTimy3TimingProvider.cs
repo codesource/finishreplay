@@ -7,7 +7,20 @@ namespace FinishReplay.Services.Timing;
 /// Reads timing events from an ALGE TimY3 over USB/serial. Structural stub: the serial
 /// plumbing and connection lifecycle are in place, but the line parser is not implemented.
 ///
+/// IMPORTANT — preferred USB integration: ALGE ships an official managed wrapper
+/// <c>Alge.TimyUsb</c> (P/Invokes <c>AlgeTimyUsb.x64.dll</c> / <c>AlgeTimyUsb.x86.dll</c>); see the
+/// example under <c>docs/AlgeTimyUsbDLLExample/</c> (git-ignored). That API is event-based and is the
+/// recommended path for USB rather than raw serial:
+///   - lifecycle:   <c>timy.Start()</c> / <c>timy.Stop()</c>, <c>timy.Send("..\r")</c>
+///   - events:      <c>LineReceived</c> (e.Device.Id, e.Data), <c>DeviceConnected/Disconnected</c>,
+///                  <c>RawReceived</c> (raw lines start with "TIMY:"), <c>HeartbeatReceived</c>
+///   - parse:       map each <c>LineReceived</c> data line to a <see cref="TimingTrigger"/>.
+///   - caveats:     Windows-only, needs the correct x86/x64 native DLL resolved via
+///                  AppDomain.AssemblyResolve and the MS Visual C++ 2012 runtime.
+/// The serial path below remains valid when the Timy exposes a virtual COM port.
+///
 /// TODO:
+///   - Implement the DLL-backed provider above (e.g. a separate AlgeTimyUsbTimingProvider), OR
 ///   - Confirm the TimY3 serial settings (baud rate, parity, line ending) and adjust below.
 ///   - Implement <see cref="TryParse"/> to map a raw line to a <see cref="TimingTrigger"/>.
 ///   - Map device channels to Start / Stop / Intermediate; everything else -> Unknown,
