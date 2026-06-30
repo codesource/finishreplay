@@ -50,8 +50,8 @@ other transports and H.264 recording remain placeholders:
 | Camera discovery/open | `ICameraProvider` / `ICameraStream` | **MJPEG** (HTTP), **RTSP/H.264** and **USB** all real (USB/RTSP via ffmpeg → MJPEG) | native (non-ffmpeg) USB capture; ONVIF |
 | Provider aggregation | `CameraProviderRegistry` / `ICameraManager` | real | — |
 | Live capture loop | `LiveCamera` | **real** — one loop feeds preview + recording | per-camera errors → UI/log |
-| Recording | `LiveCamera` + `AviMjpegWriter` | **MJPEG → AVI real**; `FfmpegVideoBackend`/`IRecordingEngine` still stubbed for state/H.264 | rolling pre/post buffer, ffmpeg MP4/H.264 |
-| Replay | `ReplayViewModel` clock + `AviMjpegReader` | **real for AVI** (decodes recorded JPEG frames, multi-cam synced); `IReplayEngine`/`ReplayEngine` now unused | H.264/RTSP decode |
+| Recording | `LiveCamera` + `AviMjpegWriter` / `FfmpegPassthroughRecorder` | **real** — Transcode→MJPEG AVI (any source) or Passthrough→MP4 `-c copy` (RTSP/H.264); mode in settings | rolling pre/post buffer |
+| Replay | `ReplayViewModel` clock + `AviMjpegReader` / ffmpeg decode | **real** — AVI read directly, MP4 decoded via ffmpeg→MJPEG; multi-cam synced; `IReplayEngine` unused | — |
 | Timeline/markers/offsets | `TimelineEngine` | real | — |
 | Timing devices | `ITimingProvider` | `ManualTimingProvider` real; `AlgeTimy3TimingProvider` serial stub | TimY3 (prefer `Alge.TimyUsb` DLL — see provider TODO) |
 | Latency calibration | `ICameraLatencyCalibrationService`, `ITriggerOutput`, `IFlashDetector` | `Fake…Service`, `StubTriggerOutput`, `BrightnessFlashDetector` | LED trigger HW + OpenCV detection |
