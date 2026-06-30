@@ -9,6 +9,12 @@ public sealed class CameraProfile
     public string Id { get; init; } = "";
     public string DisplayName { get; set; } = "";
 
+    /// <summary>Short token appended to clip filenames to identify this camera (e.g. "finish", "side").</summary>
+    public string Suffix { get; set; } = "";
+
+    /// <summary>Whether this camera participates in recording by default.</summary>
+    public bool Enabled { get; set; } = true;
+
     /// <summary>Transport kind: "USB", "MJPEG", "RTSP", ... (matches a provider's source type).</summary>
     public string SourceType { get; set; } = "";
 
