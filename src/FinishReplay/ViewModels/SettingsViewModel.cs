@@ -33,10 +33,14 @@ public partial class SettingsViewModel : ViewModelBase
     public ObservableCollection<CameraSettingRowViewModel> Cameras { get; } = new();
     public IReadOnlyList<string> AvailableSourceTypes { get; }
 
+    public IReadOnlyList<RecordingMode> RecordingModes { get; } =
+        new[] { RecordingMode.Transcode, RecordingMode.Passthrough };
+
     [ObservableProperty] private double _preRecordSeconds;
     [ObservableProperty] private double _postRecordSeconds;
     [ObservableProperty] private string _storageDirectory = "";
     [ObservableProperty] private string _ffmpegPath = "";
+    [ObservableProperty] private RecordingMode _recordingMode;
 
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _category = "";
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _discipline = "";
@@ -118,6 +122,7 @@ public partial class SettingsViewModel : ViewModelBase
         PostRecordSeconds = s.PostRecordSeconds;
         StorageDirectory = s.StorageDirectory;
         FfmpegPath = s.FfmpegPath;
+        RecordingMode = s.RecordingMode;
         Category = s.Category;
         Discipline = s.Discipline;
         SeriesNumber = s.SeriesNumber;
@@ -139,6 +144,7 @@ public partial class SettingsViewModel : ViewModelBase
             ? AppSettings.DefaultStorageDirectory
             : StorageDirectory;
         s.FfmpegPath = string.IsNullOrWhiteSpace(FfmpegPath) ? "ffmpeg" : FfmpegPath;
+        s.RecordingMode = RecordingMode;
         s.Category = Category;
         s.Discipline = Discipline;
         s.SeriesNumber = SeriesNumber;

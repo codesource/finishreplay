@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FinishReplay.Models;
+using FinishReplay.Services.Camera.Providers.Ffmpeg;
 using FinishReplay.Services.Recording.Mjpeg;
 using FinishReplay.Services.Session;
 using FinishReplay.Services.Timeline;
@@ -20,15 +21,17 @@ public partial class ReplayViewModel : ViewModelBase
 {
     private readonly ISessionManager _sessionManager;
     private readonly TimelineEngine _timelineEngine;
+    private readonly Func<string> _ffmpegPath;
     private readonly DispatcherTimer _clock;
 
     private double _fps = 30;
     private TimeSpan _frameStep = TimeSpan.FromSeconds(1.0 / 30.0);
 
-    public ReplayViewModel(ISessionManager sessionManager, TimelineEngine timelineEngine)
+    public ReplayViewModel(ISessionManager sessionManager, TimelineEngine timelineEngine, Func<string>? ffmpegPath = null)
     {
         _sessionManager = sessionManager;
         _timelineEngine = timelineEngine;
+        _ffmpegPath = ffmpegPath ?? (() => "ffmpeg");
 
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.0 / 30.0) };
         _clock.Tick += (_, _) => OnClockTick();
@@ -108,7 +111,7 @@ public partial class ReplayViewModel : ViewModelBase
         foreach (var c in metadata.Cameras)
         {
             var vm = new ReplayCameraViewModel(c);
-            var frames = ReadFrames(Path.Combine(sessionDir, c.VideoFile));
+            var frames = await ReadFramesAsync(Path.Combine(sessionDir, c.VideoFile));
             vm.LoadFrames(frames, c.Fps);
             maxFrames = Math.Max(maxFrames, frames.Count);
             Cameras.Add(vm);
@@ -190,14 +193,36 @@ public partial class ReplayViewModel : ViewModelBase
             cam.UpdateTime(Position);
     }
 
-    private static IReadOnlyList<byte[]> ReadFrames(string path)
+    /// <summary>
+    /// Load a clip's frames for replay. AVI (MJPEG) is read directly; MP4/H.264 passthrough clips are
+    /// decoded back to JPEG frames via ffmpeg (whole clip buffered — fine for short clips).
+    /// </summary>
+    private async Task<IReadOnlyList<byte[]>> ReadFramesAsync(string path)
     {
         try
         {
-            if (!File.Exists(path) || !path.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
+            if (!File.Exists(path))
                 return Array.Empty<byte[]>();
-            using var file = File.OpenRead(path);
-            return AviMjpegReader.ReadFrames(file);
+
+            if (path.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
+            {
+                using var file = File.OpenRead(path);
+                return AviMjpegReader.ReadFrames(file);
+            }
+
+            // MP4 (or other ffmpeg-decodable) → transcode to MJPEG frames for rendering.
+            var exe = FfmpegLocator.Resolve(_ffmpegPath());
+            if (exe is null)
+                return Array.Empty<byte[]>();
+
+            var device = new CameraDevice(path, path);
+            var args = FfmpegArguments.ForFileToMjpeg(path);
+            await using var stream = new FfmpegMjpegProcessStream(device, _ => new FfmpegProcess(exe, args));
+
+            var frames = new List<byte[]>();
+            await foreach (var frame in stream.ReadFramesAsync())
+                frames.Add(frame.Data);
+            return frames;
         }
         catch
         {

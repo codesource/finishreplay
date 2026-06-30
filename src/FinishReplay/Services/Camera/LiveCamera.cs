@@ -1,4 +1,7 @@
 using FinishReplay.Models;
+using FinishReplay.Services.Camera.Providers;
+using FinishReplay.Services.Camera.Providers.Ffmpeg;
+using FinishReplay.Services.Recording.Ffmpeg;
 using FinishReplay.Services.Recording.Mjpeg;
 
 namespace FinishReplay.Services.Camera;
@@ -13,18 +16,21 @@ public sealed class LiveCamera : IAsyncDisposable
 {
     private readonly CameraProviderRegistry _registry;
     private readonly CameraProfile _profile;
+    private readonly Func<string> _ffmpegPath;
     private readonly object _gate = new();
 
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private AviMjpegWriter? _writer;
     private FileStream? _file;
+    private FfmpegPassthroughRecorder? _passthrough;
     private int _recordedFrames;
 
-    public LiveCamera(CameraProviderRegistry registry, CameraProfile profile)
+    public LiveCamera(CameraProviderRegistry registry, CameraProfile profile, Func<string>? ffmpegPath = null)
     {
         _registry = registry;
         _profile = profile;
+        _ffmpegPath = ffmpegPath ?? (() => "ffmpeg");
     }
 
     public string CameraId => _profile.Id;
@@ -34,8 +40,11 @@ public sealed class LiveCamera : IAsyncDisposable
 
     public bool IsRecording
     {
-        get { lock (_gate) return _writer is not null; }
+        get { lock (_gate) return _writer is not null || _passthrough is not null; }
     }
+
+    /// <summary>True when this source records archival H.264 (RTSP) under passthrough mode.</summary>
+    public bool SupportsPassthrough => _profile.SourceType == RtspCameraProvider.Type;
 
     /// <summary>Open the stream and begin the read loop (idempotent).</summary>
     public void Start()
@@ -45,23 +54,42 @@ public sealed class LiveCamera : IAsyncDisposable
         _loop = Task.Run(() => RunAsync(_cts.Token));
     }
 
-    public void StartRecording(string filePath, double fps)
+    public void StartRecording(string filePath, double fps, RecordingMode mode)
     {
         lock (_gate)
         {
-            if (_writer is not null) return;
+            if (_writer is not null || _passthrough is not null) return;
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+
+            // Passthrough (archival H.264 copy to MP4) for RTSP — a dedicated ffmpeg process writes
+            // the file directly while the preview loop keeps running. Everything else transcodes to AVI.
+            if (mode == RecordingMode.Passthrough && SupportsPassthrough &&
+                FfmpegLocator.Resolve(_ffmpegPath()) is { } exe)
+            {
+                var args = FfmpegArguments.ForRtspPassthroughMp4(_profile.SourceUrl, filePath);
+                _passthrough = new FfmpegPassthroughRecorder(exe, args);
+                return;
+            }
+
             _file = File.Create(filePath);
             _writer = new AviMjpegWriter(_file, fps);
             _recordedFrames = 0;
         }
     }
 
-    /// <summary>Finalize the AVI and return how many frames were written.</summary>
+    /// <summary>Finalize the clip and return how many frames were written (0 for passthrough).</summary>
     public int StopRecording()
     {
         lock (_gate)
         {
+            if (_passthrough is not null)
+            {
+                _passthrough.Stop();
+                _passthrough.Dispose();
+                _passthrough = null;
+                return 0;
+            }
+
             if (_writer is null) return 0;
             _writer.Finish();
             _writer.Dispose();

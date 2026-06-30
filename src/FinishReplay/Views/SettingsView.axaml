@@ -36,6 +36,14 @@
                             <TextBlock Text="Recording continues this long after a stop trigger."
                                        Foreground="#6B7280" FontSize="12" />
                         </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Recording mode" FontWeight="SemiBold" />
+                            <ComboBox HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding RecordingModes}"
+                                      SelectedItem="{Binding RecordingMode}" />
+                            <TextBlock TextWrapping="Wrap" Foreground="#6B7280" FontSize="12"
+                                       Text="Transcode re-encodes every camera to MJPEG AVI. Passthrough copies RTSP/H.264 to MP4 at original quality (no re-encode); non-H.264 sources fall back to transcode." />
+                        </StackPanel>
                         <Separator />
                         <TextBlock Text="Event context (used in filenames)" FontWeight="SemiBold" />
                         <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" >

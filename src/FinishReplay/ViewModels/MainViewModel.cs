@@ -48,7 +48,7 @@ public partial class MainViewModel : ViewModelBase
         var manualTiming = new ManualTimingProvider();
 
         Recording = new RecordingViewModel(providerRegistry, recordingEngine, sessionManager, manualTiming, calibrationService, settingsService);
-        Replay = new ReplayViewModel(sessionManager, timelineEngine);
+        Replay = new ReplayViewModel(sessionManager, timelineEngine, () => settingsService.Current.FfmpegPath);
         Settings = new SettingsViewModel(settingsService, cameraManager);
 
         _currentPage = Recording;

@@ -87,4 +87,40 @@ public static class FfmpegArguments
 
         return args;
     }
+
+    /// <summary>
+    /// Archival passthrough: copy the RTSP source's encoded video stream to MP4 with no re-encode
+    /// (lossless, original H.264). Fragmented MP4 flags keep the file playable even if ffmpeg is
+    /// killed. stdin is left open so a graceful "q" can finalize the file. <paramref name="outputPath"/>
+    /// is the file to write.
+    /// </summary>
+    public static IReadOnlyList<string> ForRtspPassthroughMp4(string url, string outputPath, bool useTcp = true)
+    {
+        var args = new List<string> { "-hide_banner", "-loglevel", "error", "-y" };
+
+        if (useTcp)
+        {
+            args.Add("-rtsp_transport");
+            args.Add("tcp");
+        }
+
+        args.Add("-i");
+        args.Add(url);
+        args.Add("-an");
+        args.Add("-c:v");
+        args.Add("copy");
+        args.Add("-movflags");
+        args.Add("+frag_keyframe+empty_moov");
+        args.Add("-f");
+        args.Add("mp4");
+        args.Add(outputPath);
+        return args;
+    }
+
+    /// <summary>
+    /// Decode a recorded file (e.g. an MP4/H.264 passthrough clip) back to an MJPEG stream on stdout,
+    /// so replay can render its frames through the shared MJPEG pipeline.
+    /// </summary>
+    public static IReadOnlyList<string> ForFileToMjpeg(string inputPath, int quality = 5)
+        => new[] { "-hide_banner", "-loglevel", "error", "-nostdin", "-i", inputPath, "-an", "-q:v", quality.ToString(), "-f", "mjpeg", "pipe:1" };
 }

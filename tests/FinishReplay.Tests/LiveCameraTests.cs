@@ -69,7 +69,7 @@ public class LiveCameraTests
         var path = Path.Combine(Path.GetTempPath(), $"finishreplay_live_{Guid.NewGuid():N}.avi");
         try
         {
-            live.StartRecording(path, fps: 30);
+            live.StartRecording(path, fps: 30, FinishReplay.Models.RecordingMode.Transcode);
             live.Start();
 
             // Wait for the controller to drain the (finite) stream before stopping it.

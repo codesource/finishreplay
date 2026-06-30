@@ -26,6 +26,9 @@ public sealed class AppSettings
     /// <summary>Path to the ffmpeg executable (used for RTSP/H.264 capture). Bare name = search PATH.</summary>
     public string FfmpegPath { get; set; } = "ffmpeg";
 
+    /// <summary>How clips are recorded: re-encode to MJPEG AVI, or copy H.264 to MP4 (archival).</summary>
+    public RecordingMode RecordingMode { get; set; } = RecordingMode.Transcode;
+
     // Current event context used when building filenames.
     public string Category { get; set; } = "";
     public string Discipline { get; set; } = "";

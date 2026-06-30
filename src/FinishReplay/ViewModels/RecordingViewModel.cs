@@ -105,7 +105,7 @@ public partial class RecordingViewModel : ViewModelBase
             // Real live capture: MJPEG (native HTTP), RTSP and USB (via ffmpeg). Start preview now.
             if (HasLiveCapture(profile.SourceType))
             {
-                var live = new LiveCamera(_registry, profile);
+                var live = new LiveCamera(_registry, profile, () => _settings.Current.FfmpegPath);
                 live.FrameReady += row.SubmitJpeg;
                 live.Start();
                 _live[profile.Id] = live;
@@ -179,11 +179,12 @@ public partial class RecordingViewModel : ViewModelBase
         _currentSession.Cameras = selected.Select(ToSessionCamera).ToList();
         Markers.Clear();
 
-        // Begin real recording on each MJPEG camera; flips engine state for the UI.
+        // Begin real recording on each capture-capable camera; flips engine state for the UI.
+        var mode = s.RecordingMode;
         foreach (var (row, cam) in selected.Zip(_currentSession.Cameras))
         {
             if (_live.TryGetValue(row.Id, out var live))
-                live.StartRecording(Path.Combine(s.StorageDirectory, cam.VideoFile), CaptureFps);
+                live.StartRecording(Path.Combine(s.StorageDirectory, cam.VideoFile), CaptureFps, mode);
         }
 
         await _recordingEngine.StartAsync(selected.Select(c => c.Profile.ToDevice()).ToList());
@@ -254,8 +255,10 @@ public partial class RecordingViewModel : ViewModelBase
 
     private SessionCamera ToSessionCamera(CameraProfileRowViewModel row)
     {
-        // MJPEG and RTSP capture real JPEG frames -> recorded as AVI; others are placeholders.
-        var ext = HasLiveCapture(row.SourceType) ? ".avi" : ".mp4";
+        // Passthrough RTSP archives original H.264 to MP4; everything captured else records MJPEG AVI.
+        var passthroughRtsp = _settings.Current.RecordingMode == RecordingMode.Passthrough
+            && row.SourceType == RtspCameraProvider.Type;
+        var ext = passthroughRtsp ? ".mp4" : (HasLiveCapture(row.SourceType) ? ".avi" : ".mp4");
         return new SessionCamera
         {
             CameraId = row.Id,
