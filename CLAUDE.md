@@ -47,7 +47,7 @@ other transports and H.264 recording remain placeholders:
 
 | Concern | Interface | Status | Real work still behind |
 |---|---|---|---|
-| Camera discovery/open | `ICameraProvider` / `ICameraStream` | **MJPEG real** (`MjpegCameraStream`, HTTP); USB/RTSP placeholders | USB (MF/AVF/V4L2), RTSP (FFmpeg) capture |
+| Camera discovery/open | `ICameraProvider` / `ICameraStream` | **MJPEG real** (HTTP) and **RTSP/H.264 real** (ffmpeg → MJPEG); USB placeholder | USB (MF/AVF/V4L2) capture |
 | Provider aggregation | `CameraProviderRegistry` / `ICameraManager` | real | — |
 | Live capture loop | `LiveCamera` | **real** — one loop feeds preview + recording | per-camera errors → UI/log |
 | Recording | `LiveCamera` + `AviMjpegWriter` | **MJPEG → AVI real**; `FfmpegVideoBackend`/`IRecordingEngine` still stubbed for state/H.264 | rolling pre/post buffer, ffmpeg MP4/H.264 |
