@@ -1,3 +1,5 @@
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FinishReplay.Models;
 
@@ -46,6 +48,42 @@ public partial class CameraProfileRowViewModel : ObservableObject
 
     [ObservableProperty]
     private double _syncOffsetMs;
+
+    /// <summary>Latest decoded preview frame, or null before any frame arrives.</summary>
+    [ObservableProperty]
+    private Bitmap? _preview;
+
+    private long _lastPreviewTicks;
+
+    /// <summary>
+    /// Decode a JPEG frame (off the UI thread) and publish it as the preview, throttled to ~15 fps
+    /// to keep the UI light. Safe to call from the capture thread.
+    /// </summary>
+    public void SubmitJpeg(byte[] jpeg)
+    {
+        var now = Environment.TickCount64;
+        if (now - _lastPreviewTicks < 66)
+            return;
+        _lastPreviewTicks = now;
+
+        Bitmap bitmap;
+        try
+        {
+            using var ms = new MemoryStream(jpeg);
+            bitmap = new Bitmap(ms);
+        }
+        catch
+        {
+            return; // ignore undecodable frames
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            var old = Preview;
+            Preview = bitmap;
+            old?.Dispose();
+        });
+    }
 
     partial void OnDisplayNameChanged(string value) => Profile.DisplayName = value;
     partial void OnManualOffsetMsChanged(double value) => Profile.ManualOffsetMs = value;

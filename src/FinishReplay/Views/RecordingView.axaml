@@ -44,16 +44,26 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:CameraProfileRowViewModel">
-                                <Border Width="260" Height="170" Margin="6" CornerRadius="6"
+                                <Border Width="260" Height="170" Margin="6" CornerRadius="6" ClipToBounds="True"
                                         Background="#111827" BorderBrush="#1F2937" BorderThickness="1">
-                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
-                                        <TextBlock Text="{Binding DisplayName}" Foreground="#E5E7EB"
-                                                   FontWeight="SemiBold" HorizontalAlignment="Center" />
-                                        <TextBlock Text="{Binding SourceType}" Foreground="#6B7280"
-                                                   FontSize="12" HorizontalAlignment="Center" />
-                                        <TextBlock Text="{Binding CalibrationStatus}" Foreground="#60A5FA"
-                                                   FontSize="12" HorizontalAlignment="Center" />
-                                    </StackPanel>
+                                    <Grid>
+                                        <!-- Live frames when available -->
+                                        <Image Source="{Binding Preview}" Stretch="Uniform" />
+
+                                        <!-- Caption overlay -->
+                                        <Border VerticalAlignment="Bottom" Background="#990B1220" Padding="6,3">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="{Binding DisplayName}" Foreground="#E5E7EB" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding SourceType}" Foreground="#9CA3AF" FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Placeholder until the first frame decodes -->
+                                        <TextBlock Text="waiting for frames…" Foreground="#6B7280" FontSize="12"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   IsVisible="{Binding Preview, Converter={x:Static ObjectConverters.IsNull}}" />
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

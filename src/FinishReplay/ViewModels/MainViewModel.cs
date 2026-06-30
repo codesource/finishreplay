@@ -39,7 +39,6 @@ public partial class MainViewModel : ViewModelBase
         IVideoBackend videoBackend = new FfmpegVideoBackend();
         IRecordingEngine recordingEngine = new RecordingEngine(videoBackend);
         ISessionManager sessionManager = new SessionManager();
-        IReplayEngine replayEngine = new ReplayEngine();
         ICameraLatencyCalibrationService calibrationService = new FakeCameraLatencyCalibrationService();
         var timelineEngine = new TimelineEngine();
         var manualTiming = new ManualTimingProvider();
@@ -48,8 +47,8 @@ public partial class MainViewModel : ViewModelBase
         // Settings are small; load once at startup so all pages see the same instance.
         settingsService.LoadAsync().GetAwaiter().GetResult();
 
-        Recording = new RecordingViewModel(recordingEngine, sessionManager, manualTiming, calibrationService, settingsService);
-        Replay = new ReplayViewModel(replayEngine, sessionManager, timelineEngine);
+        Recording = new RecordingViewModel(providerRegistry, recordingEngine, sessionManager, manualTiming, calibrationService, settingsService);
+        Replay = new ReplayViewModel(sessionManager, timelineEngine);
         Settings = new SettingsViewModel(settingsService, cameraManager);
 
         _currentPage = Recording;

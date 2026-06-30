@@ -16,6 +16,9 @@ public sealed class SessionCamera
     /// <summary>Video file for this camera, relative to the session folder.</summary>
     public string VideoFile { get; set; } = "";
 
+    /// <summary>Frames per second the clip was recorded at (used to map replay time to frames).</summary>
+    public double Fps { get; set; } = 30;
+
     public double? CalibratedLatencyMs { get; set; }
     public double ManualOffsetMs { get; set; }
 

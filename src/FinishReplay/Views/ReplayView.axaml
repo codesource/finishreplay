@@ -159,7 +159,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ReplayCameraViewModel">
-                                <Border Width="300" Height="210" Margin="6" CornerRadius="6"
+                                <Border Width="300" Height="210" Margin="6" CornerRadius="6" ClipToBounds="True"
                                         Background="#111827" BorderBrush="#1F2937" BorderThickness="1"
                                         IsVisible="{Binding IsSelected}">
                                     <DockPanel>
@@ -170,8 +170,12 @@
                                                            Foreground="#60A5FA" FontFamily="Consolas" />
                                             </Grid>
                                         </Border>
-                                        <TextBlock Text="video" Foreground="#374151" FontSize="22"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Grid>
+                                            <Image Source="{Binding CurrentFrame}" Stretch="Uniform" />
+                                            <TextBlock Text="no frames" Foreground="#374151" FontSize="18"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       IsVisible="{Binding CurrentFrame, Converter={x:Static ObjectConverters.IsNull}}" />
+                                        </Grid>
                                     </DockPanel>
                                 </Border>
                             </DataTemplate>

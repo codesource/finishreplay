@@ -3,40 +3,34 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FinishReplay.Models;
-using FinishReplay.Services.Replay;
+using FinishReplay.Services.Recording.Mjpeg;
 using FinishReplay.Services.Session;
 using FinishReplay.Services.Timeline;
 
 namespace FinishReplay.ViewModels;
 
 /// <summary>
-/// Replay screen. Browse sessions (newest first); loading one shows its markers and cameras. Several
-/// cameras can be selected and played at once — a single master clock drives them and each camera is
-/// time-shifted by its sync offset so they stay aligned. Markers are drawn on the timeline and in a
-/// list; clicking one seeks the master clock so every camera jumps together.
+/// Replay screen. Browse sessions (newest first); loading one lists its cameras and markers and
+/// reads each camera's recorded frames. Several cameras can be selected and played together under a
+/// single master clock, each shifted by its sync offset so the views stay aligned. Markers render as
+/// clickable ticks on the timeline (and a list); clicking one seeks the master clock so every camera
+/// jumps to that moment.
 /// </summary>
 public partial class ReplayViewModel : ViewModelBase
 {
-    private static readonly TimeSpan FrameInterval = TimeSpan.FromSeconds(1.0 / 30.0);
-
-    private readonly IReplayEngine _replayEngine;
     private readonly ISessionManager _sessionManager;
     private readonly TimelineEngine _timelineEngine;
     private readonly DispatcherTimer _clock;
 
-    public ReplayViewModel(
-        IReplayEngine replayEngine,
-        ISessionManager sessionManager,
-        TimelineEngine timelineEngine)
+    private double _fps = 30;
+    private TimeSpan _frameStep = TimeSpan.FromSeconds(1.0 / 30.0);
+
+    public ReplayViewModel(ISessionManager sessionManager, TimelineEngine timelineEngine)
     {
-        _replayEngine = replayEngine;
         _sessionManager = sessionManager;
         _timelineEngine = timelineEngine;
 
-        _replayEngine.PositionChanged += (_, pos) => OnEnginePosition(pos);
-
-        // Master clock: advances the engine position while playing so all cameras move together.
-        _clock = new DispatcherTimer { Interval = FrameInterval };
+        _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.0 / 30.0) };
         _clock.Tick += (_, _) => OnClockTick();
 
         SessionsDirectory = AppSettings.DefaultStorageDirectory;
@@ -68,7 +62,6 @@ public partial class ReplayViewModel : ViewModelBase
     public double PositionFraction =>
         Duration > TimeSpan.Zero ? Position.TotalSeconds / Duration.TotalSeconds : 0;
 
-    /// <summary>Refresh the session list from disk (newest first).</summary>
     public async Task RefreshSessionsAsync()
     {
         SessionsDirectory = AppSettings.DefaultStorageDirectory;
@@ -100,13 +93,9 @@ public partial class ReplayViewModel : ViewModelBase
             return;
         }
 
-        // Load the reference (first) camera into the engine to establish the master duration.
         var sessionDir = Path.GetDirectoryName(session.MetadataFilePath) ?? "";
-        var primary = metadata.Cameras.FirstOrDefault();
-        await _replayEngine.LoadAsync(primary is not null ? Path.Combine(sessionDir, primary.VideoFile) : "");
-
-        Duration = _replayEngine.Duration;
-        Position = TimeSpan.Zero;
+        _fps = metadata.Cameras.FirstOrDefault()?.Fps is > 0 and var f ? f : 30;
+        _frameStep = TimeSpan.FromSeconds(1.0 / _fps);
 
         _timelineEngine.SetCameraOffsets(metadata.Cameras.Select(c => new CameraSyncOffset
         {
@@ -115,8 +104,18 @@ public partial class ReplayViewModel : ViewModelBase
             Source = "calibrated",
         }));
 
+        var maxFrames = 0;
         foreach (var c in metadata.Cameras)
-            Cameras.Add(new ReplayCameraViewModel(c));
+        {
+            var vm = new ReplayCameraViewModel(c);
+            var frames = ReadFrames(Path.Combine(sessionDir, c.VideoFile));
+            vm.LoadFrames(frames, c.Fps);
+            maxFrames = Math.Max(maxFrames, frames.Count);
+            Cameras.Add(vm);
+        }
+
+        Duration = maxFrames > 0 ? TimeSpan.FromSeconds(maxFrames / _fps) : TimeSpan.Zero;
+        Position = TimeSpan.Zero;
 
         foreach (var m in metadata.TimingMarkers)
             Markers.Add(new ReplayMarkerViewModel(m, FractionFor(m.VideoTime)));
@@ -128,35 +127,26 @@ public partial class ReplayViewModel : ViewModelBase
     [RelayCommand]
     private void PlayPause()
     {
-        if (!HasSession) return;
+        if (!HasSession || Duration <= TimeSpan.Zero) return;
 
-        if (_replayEngine.IsPlaying)
+        if (IsPlaying)
         {
             Pause();
         }
         else
         {
             if (Position >= Duration)
-                _replayEngine.Seek(TimeSpan.Zero);
-            _replayEngine.Play();
-            _clock.Start();
+                Seek(TimeSpan.Zero);
             IsPlaying = true;
+            _clock.Start();
         }
     }
 
     [RelayCommand]
-    private void StepForward()
-    {
-        Pause();
-        _replayEngine.StepForward();
-    }
+    private void StepForward() { Pause(); Seek(Position + _frameStep); }
 
     [RelayCommand]
-    private void StepBackward()
-    {
-        Pause();
-        _replayEngine.StepBackward();
-    }
+    private void StepBackward() { Pause(); Seek(Position - _frameStep); }
 
     /// <summary>Seek the master clock to a marker; every selected camera jumps with it.</summary>
     [RelayCommand]
@@ -164,42 +154,55 @@ public partial class ReplayViewModel : ViewModelBase
     {
         if (marker is null) return;
         Pause();
-        _replayEngine.Seek(marker.VideoTime);
+        Seek(marker.VideoTime);
     }
 
     private void Pause()
     {
         _clock.Stop();
-        _replayEngine.Pause();
         IsPlaying = false;
+    }
+
+    private void Seek(TimeSpan target)
+    {
+        var clamped = target < TimeSpan.Zero ? TimeSpan.Zero : target > Duration ? Duration : target;
+        Position = clamped;
+        UpdateCameraTimes();
     }
 
     private void OnClockTick()
     {
-        if (!_replayEngine.IsPlaying) return;
-
-        var next = _replayEngine.Position + FrameInterval;
+        var next = Position + _frameStep;
         if (next >= Duration)
         {
-            _replayEngine.Seek(Duration);
+            Seek(Duration);
             Pause();
         }
         else
         {
-            _replayEngine.Seek(next);
+            Seek(next);
         }
-    }
-
-    private void OnEnginePosition(TimeSpan pos)
-    {
-        Position = pos;
-        UpdateCameraTimes();
     }
 
     private void UpdateCameraTimes()
     {
         foreach (var cam in Cameras)
             cam.UpdateTime(Position);
+    }
+
+    private static IReadOnlyList<byte[]> ReadFrames(string path)
+    {
+        try
+        {
+            if (!File.Exists(path) || !path.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
+                return Array.Empty<byte[]>();
+            using var file = File.OpenRead(path);
+            return AviMjpegReader.ReadFrames(file);
+        }
+        catch
+        {
+            return Array.Empty<byte[]>();
+        }
     }
 
     private double FractionFor(TimeSpan videoTime) =>
