@@ -49,6 +49,11 @@ internal static class Program
 
     private static void RunDecodeLoop(Options o)
     {
+        // Input devices (dshow / v4l2 / avfoundation) live in libavdevice and are NOT registered by
+        // libavformat automatically — without this, FindByShortName("dshow") returns null and libav
+        // tries to open "video=Name" as a file (ENOENT / error -2).
+        ffmpeg.avdevice_register_all();
+
         MediaDictionary? options = null;
         void SetOption(string key, string value) => (options ??= new MediaDictionary())[key] = value;
 
