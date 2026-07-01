@@ -33,26 +33,6 @@ public partial class SettingsView : UserControl
             vm.StorageDirectory = picked;
     }
 
-    private async void OnBrowseFfmpegClick(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not SettingsViewModel vm)
-            return;
-
-        var top = TopLevel.GetTopLevel(this);
-        if (top is null)
-            return;
-
-        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Locate the ffmpeg executable",
-            AllowMultiple = false,
-        });
-
-        var picked = files.FirstOrDefault()?.TryGetLocalPath();
-        if (!string.IsNullOrEmpty(picked))
-            vm.FfmpegPath = picked;
-    }
-
     // Opens the per-camera configuration dialog (needs the owner window, so it lives in code-behind).
     private async void OnConfigureCameraClick(object? sender, RoutedEventArgs e)
     {

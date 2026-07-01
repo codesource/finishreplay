@@ -54,29 +54,63 @@ internal static class Program
         // tries to open "video=Name" as a file (ENOENT / error -2).
         ffmpeg.avdevice_register_all();
 
-        MediaDictionary? options = null;
-        void SetOption(string key, string value) => (options ??= new MediaDictionary())[key] = value;
-
-        if (o.RtspTcp)
-            SetOption("rtsp_transport", "tcp");
-        if (o.Fps > 0)
-            SetOption("framerate", o.Fps.ToString());
-        if (!string.IsNullOrWhiteSpace(o.VideoSize))
-            SetOption("video_size", o.VideoSize);
-        if (!string.IsNullOrWhiteSpace(o.PixelFormat))
-        {
-            if (o.PixelFormat.Equals("mjpeg", StringComparison.OrdinalIgnoreCase))
-                SetOption("vcodec", "mjpeg");           // dshow
-            else
-            {
-                SetOption("pixel_format", o.PixelFormat); // dshow / avfoundation
-                SetOption("input_format", o.PixelFormat); // v4l2
-            }
-        }
-
         InputFormat? inputFormat = o.Format is null ? null : InputFormat.FindByShortName(o.Format);
 
-        using FormatContext input = FormatContext.OpenInputUrl(o.Url, inputFormat, options);
+        // Build the option set for a device open. When `constrain` is false we drop the options that
+        // pin the hardware to a specific capture mode (video_size / framerate / pixel_format). DirectShow
+        // (and, to a lesser extent, v4l2/avfoundation) rejects an unsupported size/rate/format *combination*
+        // with EIO (-5) instead of negotiating, so we first try the requested mode, then fall back to the
+        // device's own default mode so preview/record still works. Transport-level options (rtsp_transport)
+        // are always kept — they don't constrain a device.
+        MediaDictionary? BuildOptions(bool constrain)
+        {
+            MediaDictionary? options = null;
+            void SetOption(string key, string value) => (options ??= new MediaDictionary())[key] = value;
+
+            if (o.RtspTcp)
+                SetOption("rtsp_transport", "tcp");
+            if (constrain)
+            {
+                if (o.Fps > 0)
+                    SetOption("framerate", o.Fps.ToString());
+                if (!string.IsNullOrWhiteSpace(o.VideoSize))
+                    SetOption("video_size", o.VideoSize);
+                if (!string.IsNullOrWhiteSpace(o.PixelFormat))
+                {
+                    if (o.PixelFormat.Equals("mjpeg", StringComparison.OrdinalIgnoreCase))
+                        SetOption("vcodec", "mjpeg");           // dshow
+                    else
+                    {
+                        SetOption("pixel_format", o.PixelFormat); // dshow / avfoundation
+                        SetOption("input_format", o.PixelFormat); // v4l2
+                    }
+                }
+            }
+            return options;
+        }
+
+        bool isDevice = inputFormat is not null;
+        bool hasConstraints = o.Fps > 0 || !string.IsNullOrWhiteSpace(o.VideoSize) || !string.IsNullOrWhiteSpace(o.PixelFormat);
+
+        FormatContext input;
+        try
+        {
+            input = FormatContext.OpenInputUrl(o.Url, inputFormat, BuildOptions(constrain: true));
+        }
+        catch when (isDevice && hasConstraints)
+        {
+            // Requested capture mode not supported by this device — retry with its default mode.
+            input = FormatContext.OpenInputUrl(o.Url, inputFormat, BuildOptions(constrain: false));
+        }
+
+        using (input)
+        {
+            RunPipeline(input, o);
+        }
+    }
+
+    private static void RunPipeline(FormatContext input, Options o)
+    {
         input.LoadStreamInfo();
 
         MediaStream inStream = input.FindBestStreamOrNull(AVMediaType.Video)

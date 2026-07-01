@@ -34,9 +34,9 @@ public partial class MainViewModel : ViewModelBase
 
         var providerRegistry = new CameraProviderRegistry(new ICameraProvider[]
         {
-            new UsbCameraProvider(() => settingsService.Current.FfmpegPath, () => settingsService.Current.VideoBackend),
+            new UsbCameraProvider(() => settingsService.Current.FfmpegPath),
             new MjpegCameraProvider(),
-            new RtspCameraProvider(() => settingsService.Current.FfmpegPath, () => settingsService.Current.VideoBackend),
+            new RtspCameraProvider(() => settingsService.Current.FfmpegPath),
             // TODO: register OnvifCameraProvider and other transports here.
         });
         ICameraManager cameraManager = new CameraManager(providerRegistry);

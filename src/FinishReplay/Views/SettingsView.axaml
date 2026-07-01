@@ -63,29 +63,9 @@
 
                     <Separator />
 
-                    <TextBlock Text="FFmpeg executable (for RTSP / USB / H.264 cameras)" FontWeight="SemiBold" />
-                    <Grid ColumnDefinitions="*,Auto,Auto">
-                        <TextBox Grid.Column="0" Margin="0,0,6,0" Text="{Binding FfmpegPath}"
-                                 Watermark="ffmpeg (auto-detected) or full path to ffmpeg.exe" />
-                        <Button Grid.Column="1" Margin="0,0,6,0" Content="Detect" Command="{Binding DetectFfmpegCommand}" />
-                        <Button Grid.Column="2" Content="Browse…" Click="OnBrowseFfmpegClick" />
-                    </Grid>
-                    <TextBlock Text="{Binding FfmpegStatus}" TextWrapping="Wrap" FontSize="12" />
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="Don't have it?" Foreground="#6B7280" FontSize="12" VerticalAlignment="Center" />
-                        <Button Content="Get FFmpeg" Command="{Binding OpenFfmpegDownloadCommand}" />
-                    </StackPanel>
-                    <TextBlock Text="Auto-detected from the app folder, PATH and common install locations (winget / chocolatey / scoop / Homebrew). A bundled copy can be placed in an 'ffmpeg' folder next to the app."
-                               Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" />
-
-                    <Separator />
-
-                    <TextBlock Text="Video backend (RTSP / USB)" FontWeight="SemiBold" />
-                    <ComboBox HorizontalAlignment="Stretch"
-                              ItemsSource="{Binding VideoBackends}"
-                              SelectedItem="{Binding VideoBackend}" />
+                    <TextBlock Text="Video engine" FontWeight="SemiBold" />
                     <TextBlock TextWrapping="Wrap" Foreground="#6B7280" FontSize="12"
-                               Text="External process shells out to ffmpeg. Isolated worker embeds FFmpeg (libav) in a separate crash-safe process — a codec crash can't take down the app; falls back to the external process if the worker isn't bundled." />
+                               Text="RTSP and USB cameras are decoded by the bundled, crash-isolated media worker (embedded FFmpeg libraries). No separate FFmpeg install is required." />
                 </StackPanel>
             </TabItem>
 

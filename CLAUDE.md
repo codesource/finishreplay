@@ -57,14 +57,18 @@ other transports and H.264 recording remain placeholders:
 | Latency calibration | `ICameraLatencyCalibrationService`, `ITriggerOutput`, `IFlashDetector` | `Fake…Service`, `StubTriggerOutput`, `BrightnessFlashDetector` | LED trigger HW + OpenCV detection |
 | Sessions | `ISessionManager` | `SessionManager` (JSON) | — |
 
-**Video backend (RTSP/USB):** two options, chosen in Settings (`AppSettings.VideoBackend`):
-- **External process** (default) — the providers shell out to `ffmpeg` (see below).
-- **Isolated worker** (embedded FFmpeg, Option B) — a separate `FinishReplay.MediaWorker` process hosts
-  the **in-process libav bindings** (Sdcb.FFmpeg) and streams JPEG frames to the app over
-  `MediaWorkerProtocol` (`WorkerCameraStream`). The native codec runs in the worker, so a decoder
-  crash only ends the frame stream — it can't take down the app. Falls back to the external process if
-  the worker exe isn't found (`MediaWorkerLocator`). The worker needs FFmpeg **native libs** at runtime
-  (from the `Sdcb.FFmpeg.runtime.*` packages / bundled per platform); it's compiled but not run in CI.
+**Video backend (RTSP/USB):** RTSP/USB capture is **always** done by the **isolated worker** (embedded
+FFmpeg, Option B) — no external ffmpeg is required, and there's no user-facing backend/ffmpeg-path
+option anymore. A separate `FinishReplay.MediaWorker` process hosts the **in-process libav bindings**
+(Sdcb.FFmpeg) and streams JPEG frames to the app over `MediaWorkerProtocol` (`WorkerCameraStream`). The
+native codec runs in the worker, so a decoder crash only ends the frame stream — it can't take down the
+app. The worker needs FFmpeg **native libs** at runtime (from the `Sdcb.FFmpeg.runtime.*` packages /
+bundled per platform); it's compiled but not run in CI. The providers fall back to an **external
+`ffmpeg` process only if the worker exe isn't bundled** (`MediaWorkerLocator` returns null). The worker
+first opens a USB device at the requested mode, then retries at the device's default mode if that combo
+is rejected (DirectShow returns EIO/-5 for an unsupported size/rate/format combination). `AppSettings.
+FfmpegPath`/`VideoBackend` remain for the worker-absent fallback and passthrough/mp4-replay, but aren't
+shown in Settings.
 
 **License:** the project is **GPLv3** (`LICENSE`), so bundling the GPL FFmpeg build (the
 `Sdcb.FFmpeg.runtime.*` binaries are `--enable-gpl`) is intentional and fine — no LGPL swap needed.

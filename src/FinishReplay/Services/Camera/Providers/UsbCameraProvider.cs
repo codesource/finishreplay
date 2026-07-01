@@ -16,16 +16,13 @@ public sealed class UsbCameraProvider : ICameraProvider
     public const string Type = "USB";
 
     private readonly Func<string> _ffmpegPath;
-    private readonly Func<VideoBackend> _backend;
     private readonly IUsbCameraEnumerator _nativeEnumerator;
 
     public UsbCameraProvider(
         Func<string>? ffmpegPath = null,
-        Func<VideoBackend>? backend = null,
         IUsbCameraEnumerator? nativeEnumerator = null)
     {
         _ffmpegPath = ffmpegPath ?? (() => "ffmpeg");
-        _backend = backend ?? (() => VideoBackend.ExternalProcess);
         _nativeEnumerator = nativeEnumerator ?? new NativeUsbCameraEnumerator();
     }
 
@@ -71,12 +68,11 @@ public sealed class UsbCameraProvider : ICameraProvider
         var platform = UsbPlatformInfo.Current;
         var fps = (int)Math.Round(settings.FrameRate ?? 30);
 
-        var ffmpeg = FfmpegLocator.Resolve(_ffmpegPath());
         var worker = MediaWorkerLocator.Resolve();
 
-        // Use the embedded, crash-isolated worker (in-process libav) when the user selected it, or
-        // automatically when external ffmpeg isn't installed — so no separate ffmpeg is required.
-        if (worker is not null && (_backend() == VideoBackend.IsolatedWorker || ffmpeg is null))
+        // The bundled, crash-isolated worker (in-process libav) is the primary path — no external
+        // ffmpeg needed. Only fall back to an external ffmpeg process if the worker isn't bundled.
+        if (worker is not null)
         {
             var (fmt, url) = platform switch
             {
@@ -100,10 +96,9 @@ public sealed class UsbCameraProvider : ICameraProvider
             return Task.FromResult(isolated);
         }
 
-        var exe = ffmpeg
+        var exe = FfmpegLocator.Resolve(_ffmpegPath())
             ?? throw new InvalidOperationException(
-                "Neither FFmpeg nor the embedded media worker is available. Install FFmpeg (or set its path " +
-                "in Settings), or switch the video backend to the isolated worker.");
+                "The embedded media worker isn't available and no external FFmpeg was found.");
 
         // AVFoundation opens by index; ":none" selects the video device with no audio.
         var deviceId = platform == UsbPlatform.MacOS ? $"{device.Id}:none" : device.Id;
