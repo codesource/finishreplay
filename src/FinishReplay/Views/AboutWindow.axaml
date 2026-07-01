@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="480"
+        x:Class="FinishReplay.Views.AboutWindow"
+        Width="460" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="About Finish Replay">
+
+    <StackPanel Margin="24" Spacing="12">
+
+        <TextBlock Text="Finish Replay" FontSize="22" FontWeight="SemiBold" />
+        <TextBlock x:Name="VersionText" Foreground="#6B7280" />
+
+        <TextBlock TextWrapping="Wrap"
+                   Text="A cross-platform video recording and instant-replay application for sports timing, with frame-accurate replay and ALGE-TIMING integration." />
+
+        <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="12">
+            <StackPanel Spacing="6">
+                <TextBlock Text="License" FontWeight="SemiBold" />
+                <TextBlock TextWrapping="Wrap" FontSize="13"
+                           Text="Finish Replay is free software licensed under the GNU General Public License v3.0. It is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE." />
+                <TextBlock x:Name="CopyrightText" Foreground="#6B7280" FontSize="12" />
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <Button Content="View license (GPLv3)" Click="OnLicenseClick" />
+                    <Button Content="Source code" Click="OnSourceClick" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="12">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Third-party components" FontWeight="SemiBold" />
+                <TextBlock TextWrapping="Wrap" FontSize="13"
+                           Text="This software uses the FFmpeg project for video capture, decoding and encoding, licensed under the GPLv3. FFmpeg source is available from ffmpeg.org." />
+                <TextBlock TextWrapping="Wrap" FontSize="13"
+                           Text="Timing integration targets ALGE-TIMING devices; the ALGE SDK is the property of ALGE-TIMING GmbH." />
+                <Button Content="FFmpeg.org" Click="OnFfmpegClick" HorizontalAlignment="Left" Margin="0,4,0,0" />
+            </StackPanel>
+        </Border>
+
+        <Button Content="Close" Click="OnCloseClick" HorizontalAlignment="Right" Padding="20,6" />
+    </StackPanel>
+
+</Window>

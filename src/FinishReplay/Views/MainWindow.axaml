@@ -13,19 +13,22 @@
     <DockPanel>
         <!-- Top navigation bar -->
         <Border DockPanel.Dock="Top" Background="#F3F4F6" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Margin="16,10" Spacing="8">
-                <TextBlock Text="Finish Replay" FontSize="18" FontWeight="SemiBold"
-                           VerticalAlignment="Center" Margin="0,0,16,0" />
-                <RadioButton GroupName="nav" Content="Recording"
-                             IsChecked="{Binding IsRecordingSelected, Mode=OneWay}"
-                             Command="{Binding ShowRecordingCommand}" />
-                <RadioButton GroupName="nav" Content="Replay"
-                             IsChecked="{Binding IsReplaySelected, Mode=OneWay}"
-                             Command="{Binding ShowReplayCommand}" />
-                <RadioButton GroupName="nav" Content="Settings"
-                             IsChecked="{Binding IsSettingsSelected, Mode=OneWay}"
-                             Command="{Binding ShowSettingsCommand}" />
-            </StackPanel>
+            <Grid Margin="16,10" ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Finish Replay" FontSize="18" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <RadioButton GroupName="nav" Content="Recording"
+                                 IsChecked="{Binding IsRecordingSelected, Mode=OneWay}"
+                                 Command="{Binding ShowRecordingCommand}" />
+                    <RadioButton GroupName="nav" Content="Replay"
+                                 IsChecked="{Binding IsReplaySelected, Mode=OneWay}"
+                                 Command="{Binding ShowReplayCommand}" />
+                    <RadioButton GroupName="nav" Content="Settings"
+                                 IsChecked="{Binding IsSettingsSelected, Mode=OneWay}"
+                                 Command="{Binding ShowSettingsCommand}" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="About" Click="OnAboutClick" VerticalAlignment="Center" />
+            </Grid>
         </Border>
 
         <!-- Active page, resolved to a view by ViewLocator -->

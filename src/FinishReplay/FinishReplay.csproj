@@ -7,6 +7,10 @@
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>FinishReplay</RootNamespace>
+    <Version>0.1.0</Version>
+    <Company>code-source.ch</Company>
+    <Product>Finish Replay</Product>
+    <Copyright>Copyright © 2026 Matthias Toscanelli / code-source.ch</Copyright>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
