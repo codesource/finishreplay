@@ -3,182 +3,95 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:FinishReplay.ViewModels"
-             xmlns:models="using:FinishReplay.Models"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="660"
              x:Class="FinishReplay.Views.RecordingView"
              x:DataType="vm:RecordingViewModel">
 
-    <Grid ColumnDefinitions="*,360" Margin="16">
+    <DockPanel Margin="16">
 
-        <!-- Left: preview grid + transport -->
-        <DockPanel Grid.Column="0" Margin="0,0,16,0">
+        <!-- Footer: record controls + event data -->
+        <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Padding="12"
+                Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6">
+            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
 
-            <!-- Transport controls -->
-            <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Padding="12"
-                    Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6">
-                <StackPanel Spacing="10">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="● Record all" Command="{Binding StartRecordingCommand}"
-                                Background="#DC2626" Foreground="White" Padding="16,8" />
-                        <Button Content="■ Stop" Command="{Binding StopRecordingCommand}" Padding="16,8" />
-                        <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Margin="12,0,0,0"
-                                   FontWeight="SemiBold" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="Manual triggers:" VerticalAlignment="Center" />
-                        <Button Content="Start" Command="{Binding TriggerStartCommand}" />
-                        <Button Content="Intermediate" Command="{Binding TriggerIntermediateCommand}" />
-                        <Button Content="Stop" Command="{Binding TriggerStopCommand}" />
+                <!-- left: record / stop / status (+ timing when a device is configured) -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Content="● Record all" Command="{Binding StartRecordingCommand}"
+                            Background="#DC2626" Foreground="White" Padding="16,8" />
+                    <Button Content="■ Stop" Command="{Binding StopRecordingCommand}" Padding="16,8" />
+                    <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="6,0,0,0" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                Margin="10,0,0,0" IsVisible="{Binding HasTimingDevice}">
+                        <TextBlock Text="{Binding TimingStatusText}" Foreground="#6B7280" FontSize="12" VerticalAlignment="Center" />
+                        <Button Content="Connect" Command="{Binding ConnectTimingCommand}" />
+                        <Button Content="Disconnect" Command="{Binding DisconnectTimingCommand}" />
                     </StackPanel>
                 </StackPanel>
-            </Border>
 
-            <!-- Live previews: one tile per camera -->
-            <Border Background="#0B1220" CornerRadius="6" MinHeight="320" Padding="8">
-                <Grid>
-                    <ItemsControl ItemsSource="{Binding Cameras}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:CameraProfileRowViewModel">
-                                <Border Width="260" Height="170" Margin="6" CornerRadius="6" ClipToBounds="True"
-                                        Background="#111827" BorderBrush="#1F2937" BorderThickness="1">
-                                    <Grid>
-                                        <!-- Live frames when available -->
-                                        <Image Source="{Binding Preview}" Stretch="Uniform" />
+                <!-- middle: required hint -->
+                <TextBlock Grid.Column="1" Text="Category and discipline are required before recording."
+                           Foreground="#DC2626" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsVisible="{Binding !HasEventContext}" />
 
-                                        <!-- Caption overlay -->
-                                        <Border VerticalAlignment="Bottom" Background="#990B1220" Padding="6,3">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <TextBlock Text="{Binding DisplayName}" Foreground="#E5E7EB" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding SourceType}" Foreground="#9CA3AF" FontSize="12"
-                                                           VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </Border>
+                <!-- right: event -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="Event" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="Category *" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" />
+                    <TextBox Width="120" Text="{Binding Category}" Watermark="U18" />
+                    <TextBlock Text="Discipline *" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" />
+                    <TextBox Width="120" Text="{Binding Discipline}" Watermark="100m" />
+                    <TextBlock Text="Series #" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" />
+                    <NumericUpDown Width="110" Minimum="1" Increment="1" Value="{Binding SeriesNumber}" />
+                </StackPanel>
+            </Grid>
+        </Border>
 
-                                        <!-- Placeholder until the first frame decodes -->
-                                        <TextBlock Text="waiting for frames…" Foreground="#6B7280" FontSize="12"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                   IsVisible="{Binding Preview, Converter={x:Static ObjectConverters.IsNull}}" />
+        <!-- Cameras fill the remaining space in a grid -->
+        <Border Background="#0B1220" CornerRadius="6" Padding="6">
+            <Grid>
+                <ItemsControl ItemsSource="{Binding Cameras}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:CameraProfileRowViewModel">
+                            <Border Margin="4" CornerRadius="6" ClipToBounds="True"
+                                    Background="#111827" BorderBrush="#1F2937" BorderThickness="1">
+                                <Grid>
+                                    <Image Source="{Binding Preview}" Stretch="Uniform" />
 
-                                        <!-- Capture error (replaces the placeholder when present) -->
-                                        <Border Background="#111827" Padding="10" VerticalAlignment="Stretch"
-                                                IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                            <TextBlock Text="{Binding ErrorText}" Foreground="#F87171" FontSize="11"
-                                                       TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <TextBlock Text="No cameras configured — add them in Settings."
-                               Foreground="#9CA3AF" FontSize="16"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               IsVisible="{Binding !HasCameras}" />
-                </Grid>
-            </Border>
-        </DockPanel>
-
-        <!-- Right: event context, camera selection, status -->
-        <ScrollViewer Grid.Column="1">
-            <StackPanel Spacing="16">
-
-                <!-- Event context (required to record) -->
-                <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="12">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Event" FontWeight="SemiBold" />
-                        <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto">
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Category *" VerticalAlignment="Center" Margin="0,4" />
-                            <TextBox Grid.Row="0" Grid.Column="1" Margin="0,4" Text="{Binding Category}" Watermark="required — e.g. U18" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Discipline *" VerticalAlignment="Center" Margin="0,4" />
-                            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,4" Text="{Binding Discipline}" Watermark="required — e.g. 100m" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Series #" VerticalAlignment="Center" Margin="0,4" />
-                            <NumericUpDown Grid.Row="2" Grid.Column="1" Margin="0,4" Minimum="1" Increment="1" Value="{Binding SeriesNumber}" />
-                        </Grid>
-                        <TextBlock Text="Category and discipline are required before recording."
-                                   Foreground="#DC2626" FontSize="12"
-                                   IsVisible="{Binding !HasEventContext}" />
-                    </StackPanel>
-                </Border>
-
-                <StackPanel Spacing="6">
-                    <TextBlock Text="Cameras (recorded together)" FontWeight="SemiBold" />
-                    <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6">
-                        <ItemsControl ItemsSource="{Binding Cameras}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CameraProfileRowViewModel">
-                                    <Border Padding="8" BorderBrush="#F3F4F6" BorderThickness="0,0,0,1">
-                                        <Grid ColumnDefinitions="Auto,*,Auto">
-                                            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}"
-                                                      VerticalAlignment="Center" Margin="0,0,6,0" />
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                                <TextBlock Foreground="#6B7280" FontSize="12"
-                                                           Text="{Binding SourceType}" />
-                                            </StackPanel>
-                                            <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="#2563EB"
-                                                       FontSize="12" ToolTip.Tip="Automatic sync offset"
-                                                       Text="{Binding SyncOffsetMs, StringFormat='sync +{0:0.#} ms'}" />
-                                        </Grid>
+                                    <Border VerticalAlignment="Bottom" Background="#990B1220" Padding="8,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding DisplayName}" Foreground="#E5E7EB" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding SourceType}" Foreground="#9CA3AF" FontSize="12"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
                                     </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Border>
-                    <TextBlock Text="Latency is calibrated automatically; configure cameras and filename format in Settings."
-                               Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" />
-                </StackPanel>
 
-                <!-- Read-only recording buffers (edit in Settings) -->
-                <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1"
-                        CornerRadius="6" Padding="12">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Recording buffers" FontWeight="SemiBold" />
-                        <TextBlock Foreground="#6B7280" FontSize="12"
-                                   Text="{Binding PreRecordSeconds, StringFormat='Pre-record: {0} s'}" />
-                        <TextBlock Foreground="#6B7280" FontSize="12"
-                                   Text="{Binding PostRecordSeconds, StringFormat='Post-record: {0} s'}" />
-                        <TextBlock Text="{Binding TimingStatusText}" Foreground="#6B7280" FontSize="12" TextWrapping="Wrap" />
-                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasTimingDevice}">
-                            <Button Content="Connect" Command="{Binding ConnectTimingCommand}" />
-                            <Button Content="Disconnect" Command="{Binding DisconnectTimingCommand}" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
+                                    <TextBlock Text="waiting for frames…" Foreground="#6B7280" FontSize="13"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               IsVisible="{Binding Preview, Converter={x:Static ObjectConverters.IsNull}}" />
 
-                <!-- Triggers captured this session -->
-                <StackPanel Spacing="6">
-                    <TextBlock Text="Triggers" FontWeight="SemiBold" />
-                    <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" MinHeight="100">
-                        <ListBox ItemsSource="{Binding Markers}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="models:TimingTrigger">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="{Binding Type}" FontWeight="SemiBold" Width="92" />
-                                        <TextBlock Text="{Binding VideoTime, StringFormat='mm\\:ss\\.fff'}"
-                                                   Foreground="#6B7280" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Border>
-                </StackPanel>
+                                    <Border Background="#111827" Padding="14" VerticalAlignment="Stretch"
+                                            IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                        <TextBlock Text="{Binding ErrorText}" Foreground="#F87171" FontSize="12"
+                                                   TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-                <Expander Header="Advanced">
-                    <StackPanel Spacing="6" Margin="0,8,0,0">
-                        <TextBlock Text="Output folder" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding StorageDirectory}" Foreground="#6B7280"
-                                   TextWrapping="Wrap" FontSize="12" />
-                    </StackPanel>
-                </Expander>
-
-            </StackPanel>
-        </ScrollViewer>
-    </Grid>
+                <TextBlock Text="No cameras configured — add them in Settings."
+                           Foreground="#9CA3AF" FontSize="16"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsVisible="{Binding !HasCameras}" />
+            </Grid>
+        </Border>
+    </DockPanel>
 
 </UserControl>

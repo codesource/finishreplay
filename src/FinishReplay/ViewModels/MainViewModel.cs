@@ -56,13 +56,11 @@ public partial class MainViewModel : ViewModelBase
 
     public bool IsRecordingSelected => CurrentPage == Recording;
     public bool IsReplaySelected => CurrentPage == Replay;
-    public bool IsSettingsSelected => CurrentPage == Settings;
 
     partial void OnCurrentPageChanged(ViewModelBase value)
     {
         OnPropertyChanged(nameof(IsRecordingSelected));
         OnPropertyChanged(nameof(IsReplaySelected));
-        OnPropertyChanged(nameof(IsSettingsSelected));
     }
 
     [RelayCommand]
@@ -74,7 +72,4 @@ public partial class MainViewModel : ViewModelBase
         await Replay.RefreshSessionsAsync();
         CurrentPage = Replay;
     }
-
-    [RelayCommand]
-    private void ShowSettings() => CurrentPage = Settings;
 }

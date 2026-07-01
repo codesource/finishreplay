@@ -23,11 +23,11 @@
                     <RadioButton GroupName="nav" Content="Replay"
                                  IsChecked="{Binding IsReplaySelected, Mode=OneWay}"
                                  Command="{Binding ShowReplayCommand}" />
-                    <RadioButton GroupName="nav" Content="Settings"
-                                 IsChecked="{Binding IsSettingsSelected, Mode=OneWay}"
-                                 Command="{Binding ShowSettingsCommand}" />
                 </StackPanel>
-                <Button Grid.Column="1" Content="About" Click="OnAboutClick" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Content="Settings" Click="OnSettingsClick" />
+                    <Button Content="About" Click="OnAboutClick" />
+                </StackPanel>
             </Grid>
         </Border>
 
