@@ -36,11 +36,11 @@ internal static class DirectShowUsbEnumerator
 
     private static IReadOnlyList<CameraDevice> EnumerateCore()
     {
-        var devices = new List<CameraDevice>();
+        var raw = new List<(string Name, string? Path)>();
 
         var comType = Type.GetTypeFromCLSID(SystemDeviceEnumClsid);
         if (comType is null)
-            return devices;
+            return Array.Empty<CameraDevice>();
 
         var devEnum = (ICreateDevEnum)Activator.CreateInstance(comType)!;
         try
@@ -48,26 +48,19 @@ internal static class DirectShowUsbEnumerator
             var category = VideoInputCategory;
             var hr = devEnum.CreateClassEnumerator(ref category, out var enumMoniker, 0);
             if (hr != 0 || enumMoniker is null)
-                return devices; // S_FALSE => no devices in this category
+                return Array.Empty<CameraDevice>(); // S_FALSE => no devices in this category
 
             try
             {
                 var monikers = new IMoniker[1];
-                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 while (enumMoniker.Next(1, monikers, IntPtr.Zero) == 0)
                 {
                     var moniker = monikers[0];
                     try
                     {
-                        var name = ReadFriendlyName(moniker);
-                        if (!string.IsNullOrWhiteSpace(name) && seen.Add(name))
-                        {
-                            devices.Add(new CameraDevice(name, name)
-                            {
-                                ProviderName = UsbCameraProvider.Type,
-                                SourceType = UsbCameraProvider.Type,
-                            });
-                        }
+                        var name = ReadProperty(moniker, "FriendlyName");
+                        if (!string.IsNullOrWhiteSpace(name))
+                            raw.Add((name, ReadProperty(moniker, "DevicePath")));
                     }
                     finally
                     {
@@ -86,10 +79,52 @@ internal static class DirectShowUsbEnumerator
             Marshal.ReleaseComObject(devEnum);
         }
 
+        return Disambiguate(raw);
+    }
+
+    /// <summary>
+    /// Two cameras can share a FriendlyName. ffmpeg's dshow input can't open "video=Name" for a
+    /// duplicate, but it also matches the device path (the "alternative name"), which is unique. So for
+    /// duplicated names we use the DevicePath as the capture Id and number the display name.
+    /// </summary>
+    private static IReadOnlyList<CameraDevice> Disambiguate(List<(string Name, string? Path)> raw)
+    {
+        var counts = raw.GroupBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+        var index = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var devices = new List<CameraDevice>();
+        foreach (var (name, path) in raw)
+        {
+            string id, display;
+            if (counts[name] > 1)
+            {
+                var n = index.TryGetValue(name, out var v) ? v + 1 : 1;
+                index[name] = n;
+                id = string.IsNullOrWhiteSpace(path) ? name : path!; // device path is unique & ffmpeg-openable
+                display = $"{name} (#{n})";
+            }
+            else
+            {
+                id = name;
+                display = name;
+            }
+
+            if (seenIds.Add(id))
+            {
+                devices.Add(new CameraDevice(id, display)
+                {
+                    ProviderName = UsbCameraProvider.Type,
+                    SourceType = UsbCameraProvider.Type,
+                });
+            }
+        }
+
         return devices;
     }
 
-    private static string? ReadFriendlyName(IMoniker moniker)
+    private static string? ReadProperty(IMoniker moniker, string property)
     {
         var bagId = typeof(IPropertyBag).GUID;
         moniker.BindToStorage(null!, null!, ref bagId, out var bagObj);
@@ -97,7 +132,7 @@ internal static class DirectShowUsbEnumerator
         try
         {
             object? value = null;
-            return bag.Read("FriendlyName", ref value, IntPtr.Zero) == 0 ? value as string : null;
+            return bag.Read(property, ref value, IntPtr.Zero) == 0 ? value as string : null;
         }
         finally
         {
