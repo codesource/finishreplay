@@ -1,6 +1,7 @@
 using FinishReplay.Models;
 using FinishReplay.Services.Camera.Providers.Ffmpeg;
 using FinishReplay.Services.Camera.Providers.Usb;
+using FinishReplay.Services.Media;
 
 namespace FinishReplay.Services.Camera.Providers;
 
@@ -15,10 +16,12 @@ public sealed class UsbCameraProvider : ICameraProvider
     public const string Type = "USB";
 
     private readonly Func<string> _ffmpegPath;
+    private readonly Func<VideoBackend> _backend;
 
-    public UsbCameraProvider(Func<string>? ffmpegPath = null)
+    public UsbCameraProvider(Func<string>? ffmpegPath = null, Func<VideoBackend>? backend = null)
     {
         _ffmpegPath = ffmpegPath ?? (() => "ffmpeg");
+        _backend = backend ?? (() => VideoBackend.ExternalProcess);
     }
 
     public string ProviderName => Type;
@@ -59,11 +62,26 @@ public sealed class UsbCameraProvider : ICameraProvider
     public Task<ICameraStream> OpenAsync(CameraDevice device, CameraSettings settings, CancellationToken cancellationToken = default)
     {
         var platform = UsbPlatformInfo.Current;
+        var fps = (int)Math.Round(settings.FrameRate ?? 30);
+
+        // Embedded, crash-isolated worker (in-process libav in a child process), when selected & present.
+        if (_backend() == VideoBackend.IsolatedWorker && MediaWorkerLocator.Resolve() is { } worker)
+        {
+            var (fmt, url) = platform switch
+            {
+                UsbPlatform.Windows => ("dshow", $"video={device.Id}"),
+                UsbPlatform.MacOS => ("avfoundation", device.Id),
+                UsbPlatform.Linux => ("v4l2", device.Id),
+                _ => throw new PlatformNotSupportedException("USB capture is not supported on this platform."),
+            };
+            var workerArgs = new[] { "--url", url, "--format", fmt, "--fps", fps.ToString() };
+            ICameraStream isolated = new WorkerCameraStream(device, _ => new FfmpegProcess(worker, workerArgs));
+            return Task.FromResult(isolated);
+        }
+
         var exe = FfmpegLocator.Resolve(_ffmpegPath())
             ?? throw new InvalidOperationException(
                 "FFmpeg was not found. Set the FFmpeg path in Settings, or add ffmpeg to your PATH, to capture USB cameras.");
-
-        var fps = (int)Math.Round(settings.FrameRate ?? 30);
 
         // AVFoundation opens by index; ":none" selects the video device with no audio.
         var deviceId = platform == UsbPlatform.MacOS ? $"{device.Id}:none" : device.Id;

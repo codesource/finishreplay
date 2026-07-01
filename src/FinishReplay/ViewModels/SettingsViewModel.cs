@@ -42,6 +42,9 @@ public partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<TimingSource> TimingSources { get; } =
         new[] { TimingSource.Manual, TimingSource.AlgeTimySerial };
 
+    public IReadOnlyList<VideoBackend> VideoBackends { get; } =
+        new[] { VideoBackend.ExternalProcess, VideoBackend.IsolatedWorker };
+
     public IReadOnlyList<int> BaudRates { get; } = new[] { 9600, 19200, 38400, 57600, 115200 };
 
     public ObservableCollection<string> SerialPorts { get; } = new();
@@ -52,6 +55,7 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private string _ffmpegPath = "";
     [ObservableProperty] private string _ffmpegStatus = "";
     [ObservableProperty] private RecordingMode _recordingMode;
+    [ObservableProperty] private VideoBackend _videoBackend;
     [ObservableProperty] private TimingSource _timingSource;
     [ObservableProperty] private string _timingSerialPort = "";
     [ObservableProperty] private int _timingBaudRate = 9600;
@@ -180,6 +184,7 @@ public partial class SettingsViewModel : ViewModelBase
         StorageDirectory = s.StorageDirectory;
         FfmpegPath = s.FfmpegPath;
         RecordingMode = s.RecordingMode;
+        VideoBackend = s.VideoBackend;
         TimingSource = s.TimingSource;
         TimingSerialPort = s.TimingSerialPort;
         TimingBaudRate = s.TimingBaudRate <= 0 ? 9600 : s.TimingBaudRate;
@@ -205,6 +210,7 @@ public partial class SettingsViewModel : ViewModelBase
             : StorageDirectory;
         s.FfmpegPath = string.IsNullOrWhiteSpace(FfmpegPath) ? "ffmpeg" : FfmpegPath;
         s.RecordingMode = RecordingMode;
+        s.VideoBackend = VideoBackend;
         s.TimingSource = TimingSource;
         s.TimingSerialPort = TimingSerialPort ?? "";
         s.TimingBaudRate = TimingBaudRate <= 0 ? 9600 : TimingBaudRate;

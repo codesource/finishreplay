@@ -57,6 +57,15 @@ other transports and H.264 recording remain placeholders:
 | Latency calibration | `ICameraLatencyCalibrationService`, `ITriggerOutput`, `IFlashDetector` | `Fake…Service`, `StubTriggerOutput`, `BrightnessFlashDetector` | LED trigger HW + OpenCV detection |
 | Sessions | `ISessionManager` | `SessionManager` (JSON) | — |
 
+**Video backend (RTSP/USB):** two options, chosen in Settings (`AppSettings.VideoBackend`):
+- **External process** (default) — the providers shell out to `ffmpeg` (see below).
+- **Isolated worker** (embedded FFmpeg, Option B) — a separate `FinishReplay.MediaWorker` process hosts
+  the **in-process libav bindings** (Sdcb.FFmpeg) and streams JPEG frames to the app over
+  `MediaWorkerProtocol` (`WorkerCameraStream`). The native codec runs in the worker, so a decoder
+  crash only ends the frame stream — it can't take down the app. Falls back to the external process if
+  the worker exe isn't found (`MediaWorkerLocator`). The worker needs FFmpeg **native libs** at runtime
+  (from the `Sdcb.FFmpeg.runtime.*` packages / bundled per platform); it's compiled but not run in CI.
+
 FFmpeg is **auto-detected** by `FfmpegLocator` (RTSP/USB/passthrough/mp4-replay all use it): it searches
 the configured path, the app's own folder + a bundled `ffmpeg/` subfolder (the packaging drop-point),
 the app-data ffmpeg dir, PATH, and common install locations (winget/choco/scoop/Program Files,

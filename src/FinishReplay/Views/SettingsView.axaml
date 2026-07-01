@@ -77,6 +77,15 @@
                     </StackPanel>
                     <TextBlock Text="Auto-detected from the app folder, PATH and common install locations (winget / chocolatey / scoop / Homebrew). A bundled copy can be placed in an 'ffmpeg' folder next to the app."
                                Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" />
+
+                    <Separator />
+
+                    <TextBlock Text="Video backend (RTSP / USB)" FontWeight="SemiBold" />
+                    <ComboBox HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding VideoBackends}"
+                              SelectedItem="{Binding VideoBackend}" />
+                    <TextBlock TextWrapping="Wrap" Foreground="#6B7280" FontSize="12"
+                               Text="External process shells out to ffmpeg. Isolated worker embeds FFmpeg (libav) in a separate crash-safe process — a codec crash can't take down the app; falls back to the external process if the worker isn't bundled." />
                 </StackPanel>
             </TabItem>
 

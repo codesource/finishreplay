@@ -29,6 +29,9 @@ public sealed class AppSettings
     /// <summary>How clips are recorded: re-encode to MJPEG AVI, or copy H.264 to MP4 (archival).</summary>
     public RecordingMode RecordingMode { get; set; } = RecordingMode.Transcode;
 
+    /// <summary>External ffmpeg process (default) or embedded, crash-isolated worker for RTSP/USB.</summary>
+    public VideoBackend VideoBackend { get; set; } = VideoBackend.ExternalProcess;
+
     /// <summary>Which timing provider supplies trigger markers.</summary>
     public TimingSource TimingSource { get; set; } = TimingSource.Manual;
 

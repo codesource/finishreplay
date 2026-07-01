@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>FinishReplay.MediaWorker</AssemblyName>
+    <RootNamespace>FinishReplay.MediaWorker</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- In-process FFmpeg (libav) bindings — the "embedded" codec engine.
+         Native libs come from the runtime package (win-x64 here); other RIDs add their own. -->
+    <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0" />
+    <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.0.0" Condition="'$(RuntimeIdentifier)' == 'win-x64' or '$(RuntimeIdentifier)' == ''" />
+  </ItemGroup>
+
+</Project>
