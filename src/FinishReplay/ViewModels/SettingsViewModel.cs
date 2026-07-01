@@ -4,7 +4,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FinishReplay.Models;
 using FinishReplay.Services.Camera;
-using FinishReplay.Services.Camera.Providers;
 using FinishReplay.Services.Camera.Providers.Ffmpeg;
 using FinishReplay.Services.Naming;
 using FinishReplay.Services.Settings;
@@ -13,28 +12,25 @@ using FinishReplay.Services.Timing;
 namespace FinishReplay.ViewModels;
 
 /// <summary>
-/// Tabbed settings: recording buffers + event context, storage folder, configured cameras
-/// (detect/add, with per-camera filename suffix) and the clip filename format with a live preview.
-/// Edits are applied to the shared <see cref="AppSettings"/> and persisted on Save.
+/// Tabbed settings: recording buffers, storage folder, ffmpeg/video backend, timing device, the
+/// clip filename format with a live preview, and the cameras (delegated to
+/// <see cref="CameraSettingsViewModel"/>). Edits are applied to the shared <see cref="AppSettings"/>
+/// and persisted on Save.
 /// </summary>
 public partial class SettingsViewModel : ViewModelBase
 {
     private readonly ISettingsService _settings;
-    private readonly ICameraManager _cameraManager;
 
     public SettingsViewModel(ISettingsService settings, ICameraManager cameraManager)
     {
         _settings = settings;
-        _cameraManager = cameraManager;
-
-        AvailableSourceTypes = new[] { MjpegCameraProvider.Type, RtspCameraProvider.Type };
-        _newCameraType = MjpegCameraProvider.Type;
+        CameraSettings = new CameraSettingsViewModel(settings, cameraManager);
 
         LoadFromSettings();
     }
 
-    public ObservableCollection<CameraSettingRowViewModel> Cameras { get; } = new();
-    public IReadOnlyList<string> AvailableSourceTypes { get; }
+    /// <summary>The Cameras tab (list with live status + type-aware add form).</summary>
+    public CameraSettingsViewModel CameraSettings { get; }
 
     public IReadOnlyList<RecordingMode> RecordingModes { get; } =
         new[] { RecordingMode.Transcode, RecordingMode.Passthrough };
@@ -59,6 +55,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private TimingSource _timingSource;
     [ObservableProperty] private string _timingSerialPort = "";
     [ObservableProperty] private int _timingBaudRate = 9600;
+
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _filenameFormat = "";
+
+    [ObservableProperty] private string _statusText = "";
 
     partial void OnFfmpegPathChanged(string value) => RefreshFfmpegStatus();
 
@@ -105,67 +105,17 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _filenameFormat = "";
-
-    [ObservableProperty] private string _newCameraType;
-    [ObservableProperty] private string _newCameraName = "";
-    [ObservableProperty] private string _newCameraUrl = "";
-    [ObservableProperty] private string _newCameraSuffix = "";
-
-    [ObservableProperty] private string _statusText = "";
-
     /// <summary>Live example of the clip filename produced by the current format.</summary>
     public string FilenamePreview
     {
         get
         {
-            var sample = Cameras.FirstOrDefault()?.Suffix;
+            var sample = CameraSettings.Cameras.FirstOrDefault()?.Suffix;
             if (string.IsNullOrWhiteSpace(sample)) sample = "cam";
             var s = _settings.Current; // event context is edited on the Recording screen
             var ctx = new RecordingNameContext(DateTimeOffset.Now, s.Category, s.Discipline, s.SeriesNumber, sample);
             return FilenameFormatter.Build(FilenameFormat, ctx) + ".mp4";
         }
-    }
-
-    [RelayCommand]
-    private async Task DetectCameras()
-    {
-        var devices = await _cameraManager.DiscoverAsync();
-        foreach (var device in devices)
-        {
-            // Skip ones already configured (same id).
-            if (Cameras.Any(c => c.Profile.Id == device.Id))
-                continue;
-            Cameras.Add(new CameraSettingRowViewModel(ToProfile(device, SuggestSuffix())));
-        }
-        OnPropertyChanged(nameof(FilenamePreview));
-    }
-
-    [RelayCommand]
-    private void AddCamera()
-    {
-        if (string.IsNullOrWhiteSpace(NewCameraUrl))
-            return;
-
-        var device = NewCameraType == RtspCameraProvider.Type
-            ? RtspCameraProvider.CreateDevice(NewCameraUrl, string.IsNullOrWhiteSpace(NewCameraName) ? null : NewCameraName)
-            : MjpegCameraProvider.CreateDevice(NewCameraUrl, string.IsNullOrWhiteSpace(NewCameraName) ? null : NewCameraName);
-
-        var suffix = string.IsNullOrWhiteSpace(NewCameraSuffix) ? SuggestSuffix() : NewCameraSuffix;
-        Cameras.Add(new CameraSettingRowViewModel(ToProfile(device, suffix)));
-
-        NewCameraName = "";
-        NewCameraUrl = "";
-        NewCameraSuffix = "";
-        OnPropertyChanged(nameof(FilenamePreview));
-    }
-
-    [RelayCommand]
-    private void RemoveCamera(CameraSettingRowViewModel? row)
-    {
-        if (row is not null)
-            Cameras.Remove(row);
-        OnPropertyChanged(nameof(FilenamePreview));
     }
 
     [RelayCommand]
@@ -193,9 +143,7 @@ public partial class SettingsViewModel : ViewModelBase
             ? "{date}-{category}-{discipline}-{serie}-{camera}"
             : s.FilenameFormat;
 
-        Cameras.Clear();
-        foreach (var profile in s.Cameras)
-            Cameras.Add(new CameraSettingRowViewModel(profile));
+        CameraSettings.Load();
 
         RefreshFfmpegStatus();
     }
@@ -215,17 +163,6 @@ public partial class SettingsViewModel : ViewModelBase
         s.TimingSerialPort = TimingSerialPort ?? "";
         s.TimingBaudRate = TimingBaudRate <= 0 ? 9600 : TimingBaudRate;
         s.FilenameFormat = FilenameFormat;
-        s.Cameras = Cameras.Select(c => c.Profile).ToList();
+        CameraSettings.ApplyTo(s);
     }
-
-    private string SuggestSuffix() => $"cam-{(char)('a' + Cameras.Count)}";
-
-    private static CameraProfile ToProfile(CameraDevice device, string suffix) => new()
-    {
-        Id = device.Id,
-        DisplayName = device.Name,
-        Suffix = suffix,
-        SourceType = string.IsNullOrEmpty(device.SourceType) ? device.ProviderName : device.SourceType,
-        SourceUrl = device.SourceUrl,
-    };
 }

@@ -40,6 +40,9 @@ public sealed class AppSettings
 
     public int TimingBaudRate { get; set; } = 9600;
 
+    /// <summary>How often (seconds) to re-check camera reachability in Settings.</summary>
+    public int CameraStatusIntervalSeconds { get; set; } = 5;
+
     // Current event context used when building filenames.
     public string Category { get; set; } = "";
     public string Discipline { get; set; } = "";

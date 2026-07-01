@@ -91,35 +91,63 @@
 
             <!-- Cameras -->
             <TabItem Header="Cameras">
-                <DockPanel Margin="4,12">
+                <DockPanel Margin="4,12" DataContext="{Binding CameraSettings}" x:DataType="vm:CameraSettingsViewModel">
                     <StackPanel DockPanel.Dock="Top" Spacing="8">
-                        <Grid ColumnDefinitions="*,Auto">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
                             <TextBlock Grid.Column="0" Text="Configured cameras" FontWeight="SemiBold" VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Content="⟳ Detect cameras" Command="{Binding DetectCamerasCommand}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <TextBlock Text="Check every" VerticalAlignment="Center" FontSize="12" Foreground="#6B7280" />
+                                <NumericUpDown Width="90" Minimum="1" Maximum="120" Increment="1" Value="{Binding StatusIntervalSeconds}" />
+                                <TextBlock Text="s" VerticalAlignment="Center" FontSize="12" Foreground="#6B7280" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="⟳ Check now" Command="{Binding RefreshCommand}" />
                         </Grid>
 
-                        <!-- Add a network camera -->
+                        <!-- Add camera: type-aware form -->
                         <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="10">
                             <StackPanel Spacing="6">
-                                <TextBlock Text="Add network camera" FontWeight="SemiBold" FontSize="13" />
-                                <Grid ColumnDefinitions="110,*,120,90" >
-                                    <ComboBox Grid.Column="0" Margin="0,0,6,0" ItemsSource="{Binding AvailableSourceTypes}"
-                                              SelectedItem="{Binding NewCameraType}" />
-                                    <TextBox Grid.Column="1" Margin="0,0,6,0" Text="{Binding NewCameraUrl}"
-                                             Watermark="rtsp:// or http:// URL" />
-                                    <TextBox Grid.Column="2" Margin="0,0,6,0" Text="{Binding NewCameraSuffix}" Watermark="suffix" />
-                                    <Button Grid.Column="3" Content="Add" Command="{Binding AddCameraCommand}"
-                                            HorizontalAlignment="Stretch" />
+                                <TextBlock Text="Add a camera" FontWeight="SemiBold" FontSize="13" />
+                                <Grid ColumnDefinitions="120,*">
+                                    <TextBlock Grid.Column="0" Text="Type" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                                              ItemsSource="{Binding CameraTypes}" SelectedItem="{Binding NewType}" />
                                 </Grid>
+
+                                <!-- USB: pick a detected device -->
+                                <Grid ColumnDefinitions="120,*" IsVisible="{Binding IsUsbType}">
+                                    <TextBlock Grid.Column="0" Text="USB device" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <ComboBox HorizontalAlignment="Stretch"
+                                                  ItemsSource="{Binding DetectedUsbDevices}" SelectedItem="{Binding NewUsbDevice}" />
+                                        <TextBlock Text="Plug in a USB camera and it appears here automatically."
+                                                   Foreground="#6B7280" FontSize="11" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Network: URL -->
+                                <Grid ColumnDefinitions="120,*" IsVisible="{Binding IsNetworkType}">
+                                    <TextBlock Grid.Column="0" Text="URL" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding NewUrl}" Watermark="rtsp://… or http://…/video" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="120,*,120,*">
+                                    <TextBlock Grid.Column="0" Text="Name *" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Margin="0,0,8,0" Text="{Binding NewName}" Watermark="required" />
+                                    <TextBlock Grid.Column="2" Text="Suffix *" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="3" Text="{Binding NewSuffix}" Watermark="required" />
+                                </Grid>
+
+                                <Button Content="Add camera" Command="{Binding AddCameraCommand}" HorizontalAlignment="Left" />
                             </StackPanel>
                         </Border>
 
                         <!-- header row -->
-                        <Grid ColumnDefinitions="60,*,140,110,40" Margin="4,6,4,0">
-                            <TextBlock Grid.Column="0" Text="On" FontSize="12" Foreground="#6B7280" />
-                            <TextBlock Grid.Column="1" Text="Name" FontSize="12" Foreground="#6B7280" />
-                            <TextBlock Grid.Column="2" Text="Suffix" FontSize="12" Foreground="#6B7280" />
-                            <TextBlock Grid.Column="3" Text="Type" FontSize="12" Foreground="#6B7280" />
+                        <Grid ColumnDefinitions="100,48,*,120,150,40" Margin="4,6,4,0">
+                            <TextBlock Grid.Column="0" Text="Status" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Grid.Column="1" Text="On" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Grid.Column="2" Text="Name" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Grid.Column="3" Text="Suffix" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Grid.Column="4" Text="Source" FontSize="12" Foreground="#6B7280" />
                         </Grid>
                     </StackPanel>
 
@@ -127,14 +155,18 @@
                         <ItemsControl ItemsSource="{Binding Cameras}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:CameraSettingRowViewModel">
-                                    <Grid ColumnDefinitions="60,*,140,110,40" Margin="4,6">
-                                        <CheckBox Grid.Column="0" IsChecked="{Binding Enabled}" />
-                                        <TextBox Grid.Column="1" Margin="0,0,6,0" Text="{Binding DisplayName}" />
-                                        <TextBox Grid.Column="2" Margin="0,0,6,0" Text="{Binding Suffix}" />
-                                        <TextBlock Grid.Column="3" Text="{Binding SourceType}" VerticalAlignment="Center"
-                                                   Foreground="#6B7280" />
-                                        <Button Grid.Column="4" Content="✕"
-                                                Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveCameraCommand}"
+                                    <Grid ColumnDefinitions="100,48,*,120,150,40" Margin="4,6">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                            <Ellipse Width="9" Height="9" Fill="{Binding StatusBrush}" />
+                                            <TextBlock Text="{Binding StatusText}" FontSize="12" />
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="1" IsChecked="{Binding Enabled}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="2" Margin="0,0,6,0" Text="{Binding DisplayName}" />
+                                        <TextBox Grid.Column="3" Margin="0,0,6,0" Text="{Binding Suffix}" />
+                                        <TextBlock Grid.Column="4" Text="{Binding SourceLabel}" VerticalAlignment="Center"
+                                                   Foreground="#6B7280" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                        <Button Grid.Column="5" Content="✕"
+                                                Command="{Binding $parent[ItemsControl].((vm:CameraSettingsViewModel)DataContext).RemoveCameraCommand}"
                                                 CommandParameter="{Binding}" />
                                     </Grid>
                                 </DataTemplate>
