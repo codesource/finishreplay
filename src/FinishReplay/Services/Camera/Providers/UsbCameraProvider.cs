@@ -6,10 +6,10 @@ using FinishReplay.Services.Media;
 namespace FinishReplay.Services.Camera.Providers;
 
 /// <summary>
-/// Provider for local USB / webcam devices via ffmpeg's platform capture inputs (dshow on Windows,
-/// avfoundation on macOS, v4l2 on Linux). Devices are enumerated from ffmpeg's <c>-list_devices</c>
-/// output (or <c>/dev/video*</c> on Linux) and captured as MJPEG, flowing through the shared pipeline
-/// for preview, AVI recording and replay. Requires ffmpeg (configurable path / PATH).
+/// Provider for local USB / webcam devices. Enumeration prefers a cheap, in-process native path
+/// (DirectShow on Windows, V4L2 on Linux) and only falls back to ffmpeg's <c>-list_devices</c> on
+/// platforms without one (macOS/avfoundation). Capture is done by ffmpeg's platform input
+/// (dshow / avfoundation / v4l2), producing MJPEG for the shared preview/record/replay pipeline.
 /// </summary>
 public sealed class UsbCameraProvider : ICameraProvider
 {
@@ -17,24 +17,31 @@ public sealed class UsbCameraProvider : ICameraProvider
 
     private readonly Func<string> _ffmpegPath;
     private readonly Func<VideoBackend> _backend;
+    private readonly IUsbCameraEnumerator _nativeEnumerator;
 
-    public UsbCameraProvider(Func<string>? ffmpegPath = null, Func<VideoBackend>? backend = null)
+    public UsbCameraProvider(
+        Func<string>? ffmpegPath = null,
+        Func<VideoBackend>? backend = null,
+        IUsbCameraEnumerator? nativeEnumerator = null)
     {
         _ffmpegPath = ffmpegPath ?? (() => "ffmpeg");
         _backend = backend ?? (() => VideoBackend.ExternalProcess);
+        _nativeEnumerator = nativeEnumerator ?? new NativeUsbCameraEnumerator();
     }
 
     public string ProviderName => Type;
 
     public async Task<IReadOnlyList<CameraDevice>> DiscoverAsync(CancellationToken cancellationToken = default)
     {
-        var platform = UsbPlatformInfo.Current;
-        if (platform == UsbPlatform.Linux)
-            return EnumerateV4l2();
+        // Cheap in-process enumeration on Windows (DirectShow) and Linux (V4L2) — no ffmpeg spawn.
+        if (_nativeEnumerator.IsSupported)
+            return _nativeEnumerator.Enumerate();
 
+        // Fallback for platforms without a native enumerator (e.g. macOS): ffmpeg -list_devices.
+        var platform = UsbPlatformInfo.Current;
         var exe = FfmpegLocator.Resolve(_ffmpegPath());
         if (exe is null)
-            return Array.Empty<CameraDevice>(); // ffmpeg required to enumerate dshow/avfoundation
+            return Array.Empty<CameraDevice>();
 
         var listArgs = FfmpegArguments.ListUsbDevices(platform);
         if (listArgs.Count == 0)
@@ -89,16 +96,5 @@ public sealed class UsbCameraProvider : ICameraProvider
 
         ICameraStream stream = new FfmpegMjpegProcessStream(device, _ => new FfmpegProcess(exe, args));
         return Task.FromResult(stream);
-    }
-
-    private static IReadOnlyList<CameraDevice> EnumerateV4l2()
-    {
-        if (!Directory.Exists("/dev"))
-            return Array.Empty<CameraDevice>();
-
-        return Directory.GetFiles("/dev", "video*")
-            .OrderBy(p => p, StringComparer.Ordinal)
-            .Select(path => new CameraDevice(path, path) { ProviderName = Type, SourceType = Type })
-            .ToList();
     }
 }

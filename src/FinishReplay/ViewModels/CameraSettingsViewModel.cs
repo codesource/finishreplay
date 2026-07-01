@@ -18,7 +18,9 @@ namespace FinishReplay.ViewModels;
 public partial class CameraSettingsViewModel : ObservableObject
 {
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(2);
-    private const double UsbRescanSeconds = 15; // USB enumeration is costly (ffmpeg) — throttle it
+    // USB enumeration is now cheap in-process (DirectShow / V4L2), so we can rescan on every tick for
+    // near-instant plug-in detection. (The ffmpeg fallback used only on macOS is heavier.)
+    private const double UsbRescanSeconds = 0;
 
     private readonly ISettingsService _settings;
     private readonly ICameraManager _cameraManager;
