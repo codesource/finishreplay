@@ -53,7 +53,7 @@ other transports and H.264 recording remain placeholders:
 | Recording | `LiveCamera` + `AviMjpegWriter` / `FfmpegPassthroughRecorder` | **real** — Transcode→MJPEG AVI or Passthrough→MP4 `-c copy`; pre/post-record rolling buffer (`FrameRingBuffer`) | passthrough pre-roll (ffmpeg segment buffer) |
 | Replay | `ReplayViewModel` clock + `AviMjpegReader` / ffmpeg decode | **real** — AVI read directly, MP4 decoded via ffmpeg→MJPEG; multi-cam synced; `IReplayEngine` unused | — |
 | Timeline/markers/offsets | `TimelineEngine` | real | — |
-| Timing devices | `ITimingProvider` | `ManualTimingProvider` real; `AlgeTimy3TimingProvider` serial stub | TimY3 (prefer `Alge.TimyUsb` DLL — see provider TODO) |
+| Timing devices | `ITimingProvider` | `ManualTimingProvider` + **real serial `AlgeTimy3TimingProvider`** (via tested `AlgeTimyProtocolParser`); Settings source/port/baud, Connect on Recording | USB-only TimY3 (no COM port) needs an external .NET-Framework `Alge.TimyUsb` bridge — the DLL is mixed-mode and can't load in .NET 9 |
 | Latency calibration | `ICameraLatencyCalibrationService`, `ITriggerOutput`, `IFlashDetector` | `Fake…Service`, `StubTriggerOutput`, `BrightnessFlashDetector` | LED trigger HW + OpenCV detection |
 | Sessions | `ISessionManager` | `SessionManager` (JSON) | — |
 

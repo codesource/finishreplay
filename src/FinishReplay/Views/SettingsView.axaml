@@ -143,6 +143,35 @@
                 </DockPanel>
             </TabItem>
 
+            <!-- Timing -->
+            <TabItem Header="Timing">
+                <StackPanel Spacing="12" Margin="4,12" MaxWidth="520" HorizontalAlignment="Left">
+                    <TextBlock Text="Timing device" FontWeight="SemiBold" />
+                    <ComboBox HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding TimingSources}"
+                              SelectedItem="{Binding TimingSource}" />
+                    <TextBlock TextWrapping="Wrap" Foreground="#6B7280" FontSize="12"
+                               Text="Manual = on-screen trigger buttons only. ALGE TimY3 reads timing events from the device's serial / USB-serial port." />
+
+                    <Grid ColumnDefinitions="100,*,Auto" RowDefinitions="Auto,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Serial port" VerticalAlignment="Center" Margin="0,4" />
+                        <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,4,6,4" HorizontalAlignment="Stretch"
+                                  ItemsSource="{Binding SerialPorts}"
+                                  SelectedItem="{Binding TimingSerialPort}" />
+                        <Button Grid.Row="0" Grid.Column="2" Margin="0,4" Content="⟳"
+                                Command="{Binding RefreshSerialPortsCommand}" ToolTip.Tip="Refresh ports" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Baud rate" VerticalAlignment="Center" Margin="0,4" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,4" HorizontalAlignment="Stretch"
+                                  ItemsSource="{Binding BaudRates}"
+                                  SelectedItem="{Binding TimingBaudRate}" />
+                    </Grid>
+
+                    <TextBlock TextWrapping="Wrap" Foreground="#6B7280" FontSize="12"
+                               Text="Connect/disconnect the device from the Recording screen. USB-only TimY3 units that don't expose a COM port need ALGE's USB SDK via an external bridge (see project docs)." />
+                </StackPanel>
+            </TabItem>
+
             <!-- Filename format -->
             <TabItem Header="Filename">
                 <StackPanel Spacing="12" Margin="4,12" MaxWidth="640" HorizontalAlignment="Left">

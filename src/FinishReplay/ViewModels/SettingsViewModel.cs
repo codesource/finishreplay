@@ -8,6 +8,7 @@ using FinishReplay.Services.Camera.Providers;
 using FinishReplay.Services.Camera.Providers.Ffmpeg;
 using FinishReplay.Services.Naming;
 using FinishReplay.Services.Settings;
+using FinishReplay.Services.Timing;
 
 namespace FinishReplay.ViewModels;
 
@@ -38,12 +39,22 @@ public partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<RecordingMode> RecordingModes { get; } =
         new[] { RecordingMode.Transcode, RecordingMode.Passthrough };
 
+    public IReadOnlyList<TimingSource> TimingSources { get; } =
+        new[] { TimingSource.Manual, TimingSource.AlgeTimySerial };
+
+    public IReadOnlyList<int> BaudRates { get; } = new[] { 9600, 19200, 38400, 57600, 115200 };
+
+    public ObservableCollection<string> SerialPorts { get; } = new();
+
     [ObservableProperty] private double _preRecordSeconds;
     [ObservableProperty] private double _postRecordSeconds;
     [ObservableProperty] private string _storageDirectory = "";
     [ObservableProperty] private string _ffmpegPath = "";
     [ObservableProperty] private string _ffmpegStatus = "";
     [ObservableProperty] private RecordingMode _recordingMode;
+    [ObservableProperty] private TimingSource _timingSource;
+    [ObservableProperty] private string _timingSerialPort = "";
+    [ObservableProperty] private int _timingBaudRate = 9600;
 
     partial void OnFfmpegPathChanged(string value) => RefreshFfmpegStatus();
 
@@ -63,6 +74,18 @@ public partial class SettingsViewModel : ViewModelBase
             FfmpegPath = resolved; // persist the discovered absolute path
         else
             RefreshFfmpegStatus();
+    }
+
+    [RelayCommand]
+    private void RefreshSerialPorts()
+    {
+        SerialPorts.Clear();
+        foreach (var port in AlgeTimy3TimingProvider.GetAvailablePorts().OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+            SerialPorts.Add(port);
+
+        // Keep the configured port visible even if it's not currently connected.
+        if (!string.IsNullOrWhiteSpace(TimingSerialPort) && !SerialPorts.Contains(TimingSerialPort))
+            SerialPorts.Add(TimingSerialPort);
     }
 
     [RelayCommand]
@@ -159,6 +182,10 @@ public partial class SettingsViewModel : ViewModelBase
         StorageDirectory = s.StorageDirectory;
         FfmpegPath = s.FfmpegPath;
         RecordingMode = s.RecordingMode;
+        TimingSource = s.TimingSource;
+        TimingSerialPort = s.TimingSerialPort;
+        TimingBaudRate = s.TimingBaudRate <= 0 ? 9600 : s.TimingBaudRate;
+        RefreshSerialPorts();
         Category = s.Category;
         Discipline = s.Discipline;
         SeriesNumber = s.SeriesNumber;
@@ -183,6 +210,9 @@ public partial class SettingsViewModel : ViewModelBase
             : StorageDirectory;
         s.FfmpegPath = string.IsNullOrWhiteSpace(FfmpegPath) ? "ffmpeg" : FfmpegPath;
         s.RecordingMode = RecordingMode;
+        s.TimingSource = TimingSource;
+        s.TimingSerialPort = TimingSerialPort ?? "";
+        s.TimingBaudRate = TimingBaudRate <= 0 ? 9600 : TimingBaudRate;
         s.Category = Category;
         s.Discipline = Discipline;
         s.SeriesNumber = SeriesNumber;

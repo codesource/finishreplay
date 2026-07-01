@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FinishReplay.Models;
@@ -33,6 +34,9 @@ public partial class RecordingViewModel : ViewModelBase
     // Live capture controllers keyed by camera id (MJPEG cameras only for now).
     private readonly Dictionary<string, LiveCamera> _live = new();
 
+    // Optional hardware timing provider (e.g. ALGE TimY3) built from settings; manual is always on.
+    private ITimingProvider? _hardwareTiming;
+
     private SessionMetadata? _currentSession;
 
     public RecordingViewModel(
@@ -51,8 +55,7 @@ public partial class RecordingViewModel : ViewModelBase
         _settings = settings;
 
         _recordingEngine.StateChanged += (_, state) => OnRecordingStateChanged(state);
-        _manualTiming.TriggerReceived += (_, trigger) => OnTriggerReceived(trigger);
-        _manualTiming.ConnectionChanged += (_, _) => UpdateTimingStatus();
+        _manualTiming.TriggerReceived += (_, trigger) => Dispatcher.UIThread.Post(() => OnTriggerReceived(trigger));
         _settings.Changed += (_, _) => LoadFromSettings();
 
         _ = _manualTiming.ConnectAsync();
@@ -85,6 +88,14 @@ public partial class RecordingViewModel : ViewModelBase
     [ObservableProperty] private bool _isCalibrating;
     [ObservableProperty] private string _calibrationSummary = "Not calibrated yet.";
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ConnectTimingCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DisconnectTimingCommand))]
+    private bool _isTimingConnected;
+
+    /// <summary>True when a hardware timing device (not just manual) is configured.</summary>
+    public bool HasTimingDevice => _hardwareTiming is not null;
+
     public string StorageDirectory => _settings.Current.StorageDirectory;
 
     public bool CanStartRecording => SelectedCameras.Count > 0 && !IsRecording && !IsFinishing;
@@ -104,6 +115,8 @@ public partial class RecordingViewModel : ViewModelBase
         foreach (var cam in _live.Values)
             _ = cam.DisposeAsync();
         _live.Clear();
+
+        RebuildTimingProvider(s);
 
         Cameras.Clear();
         foreach (var profile in s.Cameras)
@@ -233,21 +246,82 @@ public partial class RecordingViewModel : ViewModelBase
     [RelayCommand] private void TriggerIntermediate() => Emit(TimingTriggerType.Intermediate);
     [RelayCommand] private void TriggerStop() => Emit(TimingTriggerType.Stop);
 
-    private void Emit(TimingTriggerType type)
+    private void Emit(TimingTriggerType type) => _manualTiming.Emit(type);
+
+    /// <summary>
+    /// Called for every trigger (manual or hardware). Computes the clip-relative time from the
+    /// trigger's wall-clock arrival and the active session, shifting by the pre-roll for transcode
+    /// clips so markers line up with frame 0.
+    /// </summary>
+    private void OnTriggerReceived(TimingTrigger trigger)
     {
         var videoTime = TimeSpan.Zero;
         if (_currentSession is not null)
         {
-            videoTime = DateTimeOffset.Now - _currentSession.CreatedAt;
-            // The transcode clip starts PreRecord seconds before the recording start (the pre-roll),
-            // so shift marker times forward to stay aligned with the clip's frame 0.
+            videoTime = trigger.ReceivedAt - _currentSession.CreatedAt;
+            if (videoTime < TimeSpan.Zero) videoTime = TimeSpan.Zero;
             if (_settings.Current.RecordingMode == RecordingMode.Transcode)
                 videoTime += TimeSpan.FromSeconds(_settings.Current.PreRecordSeconds);
         }
-        _manualTiming.Emit(type, videoTime < TimeSpan.Zero ? TimeSpan.Zero : videoTime, DateTimeOffset.Now);
+
+        Markers.Add(new TimingTrigger
+        {
+            Type = trigger.Type,
+            ReceivedAt = trigger.ReceivedAt,
+            VideoTime = videoTime,
+            RawMessage = trigger.RawMessage,
+        });
+
+        // TODO: optionally auto start/stop recording on Start/Stop triggers.
     }
 
-    private void OnTriggerReceived(TimingTrigger trigger) => Markers.Add(trigger);
+    // --- hardware timing (ALGE TimY3) ---
+
+    private bool CanConnectTiming => HasTimingDevice && !IsTimingConnected;
+    private bool CanDisconnectTiming => HasTimingDevice && IsTimingConnected;
+
+    [RelayCommand(CanExecute = nameof(CanConnectTiming))]
+    private async Task ConnectTiming()
+    {
+        if (_hardwareTiming is null) return;
+        try { await _hardwareTiming.ConnectAsync(); }
+        catch (Exception ex) { TimingStatusText = $"Timing: connection failed — {ex.Message}"; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDisconnectTiming))]
+    private async Task DisconnectTiming()
+    {
+        if (_hardwareTiming is null) return;
+        await _hardwareTiming.DisconnectAsync();
+    }
+
+    private void RebuildTimingProvider(AppSettings s)
+    {
+        // Dispose any previous hardware provider.
+        if (_hardwareTiming is not null)
+        {
+            try { _hardwareTiming.Dispose(); } catch { /* ignore */ }
+            _hardwareTiming = null;
+        }
+
+        if (s.TimingSource == TimingSource.AlgeTimySerial && !string.IsNullOrWhiteSpace(s.TimingSerialPort))
+        {
+            var provider = new AlgeTimy3TimingProvider(s.TimingSerialPort, s.TimingBaudRate);
+            provider.TriggerReceived += (_, t) => Dispatcher.UIThread.Post(() => OnTriggerReceived(t));
+            provider.ConnectionChanged += (_, connected) => Dispatcher.UIThread.Post(() =>
+            {
+                IsTimingConnected = connected;
+                UpdateTimingStatus();
+            });
+            _hardwareTiming = provider;
+        }
+
+        IsTimingConnected = false;
+        OnPropertyChanged(nameof(HasTimingDevice));
+        ConnectTimingCommand.NotifyCanExecuteChanged();
+        DisconnectTimingCommand.NotifyCanExecuteChanged();
+        UpdateTimingStatus();
+    }
 
     private void OnRecordingStateChanged(RecordingState state)
     {
@@ -262,8 +336,17 @@ public partial class RecordingViewModel : ViewModelBase
         };
     }
 
-    private void UpdateTimingStatus() =>
-        TimingStatusText = _manualTiming.IsConnected ? "Timing: manual (ready)" : "Timing: not connected";
+    private void UpdateTimingStatus()
+    {
+        if (_hardwareTiming is null)
+        {
+            TimingStatusText = "Timing: manual (no device)";
+            return;
+        }
+        TimingStatusText = IsTimingConnected
+            ? $"Timing: {_hardwareTiming.Name} — connected"
+            : $"Timing: {_hardwareTiming.Name} — not connected";
+    }
 
     private void ApplySyncOffsets(IReadOnlyList<CameraProfileRowViewModel> rows)
     {

@@ -29,14 +29,17 @@ public sealed class ManualTimingProvider : ITimingProvider
         return Task.CompletedTask;
     }
 
-    /// <summary>Inject a trigger as if it had arrived from a device.</summary>
-    public void Emit(TimingTriggerType type, TimeSpan videoTime, DateTimeOffset receivedAt)
+    /// <summary>
+    /// Inject a trigger as if it had arrived from a device. The clip-relative <c>VideoTime</c> is left
+    /// at zero and filled in by the recording layer (same as hardware providers).
+    /// </summary>
+    public void Emit(TimingTriggerType type)
     {
         TriggerReceived?.Invoke(this, new TimingTrigger
         {
             Type = type,
-            ReceivedAt = receivedAt,
-            VideoTime = videoTime,
+            ReceivedAt = DateTimeOffset.Now,
+            VideoTime = TimeSpan.Zero,
             RawMessage = $"MANUAL:{type}",
         });
     }

@@ -29,6 +29,14 @@ public sealed class AppSettings
     /// <summary>How clips are recorded: re-encode to MJPEG AVI, or copy H.264 to MP4 (archival).</summary>
     public RecordingMode RecordingMode { get; set; } = RecordingMode.Transcode;
 
+    /// <summary>Which timing provider supplies trigger markers.</summary>
+    public TimingSource TimingSource { get; set; } = TimingSource.Manual;
+
+    /// <summary>Serial/USB-serial port for the ALGE TimY3 (e.g. "COM3").</summary>
+    public string TimingSerialPort { get; set; } = "";
+
+    public int TimingBaudRate { get; set; } = 9600;
+
     // Current event context used when building filenames.
     public string Category { get; set; } = "";
     public string Discipline { get; set; } = "";
