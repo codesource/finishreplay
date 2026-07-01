@@ -54,9 +54,11 @@ public partial class RecordingViewModel : ViewModelBase
         _calibrationService = calibrationService;
         _settings = settings;
 
-        _recordingEngine.StateChanged += (_, state) => OnRecordingStateChanged(state);
+        _recordingEngine.StateChanged += (_, state) => Dispatcher.UIThread.Post(() => OnRecordingStateChanged(state));
         _manualTiming.TriggerReceived += (_, trigger) => Dispatcher.UIThread.Post(() => OnTriggerReceived(trigger));
-        _settings.Changed += (_, _) => LoadFromSettings();
+        // SettingsService.SaveAsync raises Changed off the UI thread (ConfigureAwait(false)), and
+        // LoadFromSettings touches UI-bound state (Cameras collection, command CanExecute) — marshal it.
+        _settings.Changed += (_, _) => Dispatcher.UIThread.Post(LoadFromSettings);
 
         _ = _manualTiming.ConnectAsync();
 
