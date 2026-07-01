@@ -69,6 +69,25 @@ public partial class RecordingViewModel : ViewModelBase
     [ObservableProperty] private double _preRecordSeconds;
     [ObservableProperty] private double _postRecordSeconds;
 
+    // Event context (required to record) — persisted into settings and used for clip/session names.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartRecording))]
+    [NotifyPropertyChangedFor(nameof(HasEventContext))]
+    [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
+    private string _category = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartRecording))]
+    [NotifyPropertyChangedFor(nameof(HasEventContext))]
+    [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
+    private string _discipline = "";
+
+    [ObservableProperty] private int _seriesNumber = 1;
+
+    partial void OnCategoryChanged(string value) => _settings.Current.Category = value?.Trim() ?? "";
+    partial void OnDisciplineChanged(string value) => _settings.Current.Discipline = value?.Trim() ?? "";
+    partial void OnSeriesNumberChanged(int value) => _settings.Current.SeriesNumber = value < 1 ? 1 : value;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanStartRecording))]
     [NotifyPropertyChangedFor(nameof(CanStopRecording))]
@@ -86,7 +105,6 @@ public partial class RecordingViewModel : ViewModelBase
     [ObservableProperty] private string _statusText = "Idle";
     [ObservableProperty] private string _timingStatusText = "Timing: manual";
     [ObservableProperty] private bool _isCalibrating;
-    [ObservableProperty] private string _calibrationSummary = "Not calibrated yet.";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConnectTimingCommand))]
@@ -98,9 +116,14 @@ public partial class RecordingViewModel : ViewModelBase
 
     public string StorageDirectory => _settings.Current.StorageDirectory;
 
-    public bool CanStartRecording => SelectedCameras.Count > 0 && !IsRecording && !IsFinishing;
+    public bool CanStartRecording =>
+        SelectedCameras.Count > 0 && !IsRecording && !IsFinishing && HasEventContext;
     public bool CanStopRecording => IsRecording && !IsFinishing;
     public bool HasCameras => Cameras.Count > 0;
+
+    /// <summary>Category and discipline are required before a session can be recorded.</summary>
+    public bool HasEventContext =>
+        !string.IsNullOrWhiteSpace(Category) && !string.IsNullOrWhiteSpace(Discipline);
 
     private List<CameraProfileRowViewModel> SelectedCameras =>
         Cameras.Where(c => c.IsSelected).ToList();
@@ -110,6 +133,9 @@ public partial class RecordingViewModel : ViewModelBase
         var s = _settings.Current;
         PreRecordSeconds = s.PreRecordSeconds;
         PostRecordSeconds = s.PostRecordSeconds;
+        Category = s.Category;
+        Discipline = s.Discipline;
+        SeriesNumber = s.SeriesNumber < 1 ? 1 : s.SeriesNumber;
 
         // Tear down previous live controllers before rebuilding.
         foreach (var cam in _live.Values)
@@ -152,7 +178,6 @@ public partial class RecordingViewModel : ViewModelBase
             return;
 
         IsCalibrating = true;
-        CalibrationSummary = "Calibrating latency…";
         try
         {
             var profiles = targets.Select(c => c.Profile).ToList();
@@ -165,16 +190,12 @@ public partial class RecordingViewModel : ViewModelBase
             }
 
             ApplySyncOffsets(targets);
-            CalibrationSummary = BuildCalibrationSummary(targets);
         }
         finally
         {
             IsCalibrating = false;
         }
     }
-
-    [RelayCommand]
-    private Task Calibrate() => AutoCalibrateAsync();
 
     [RelayCommand(CanExecute = nameof(CanStartRecording))]
     private async Task StartRecording()
@@ -236,6 +257,7 @@ public partial class RecordingViewModel : ViewModelBase
         await _sessionManager.SaveAsync(_settings.Current.StorageDirectory, _currentSession);
 
         _settings.Current.SeriesNumber++;
+        SeriesNumber = _settings.Current.SeriesNumber; // reflect the bump in the UI
         await _settings.SaveAsync();
 
         _currentSession = null;
@@ -395,13 +417,5 @@ public partial class RecordingViewModel : ViewModelBase
         var s = _settings.Current;
         var ctx = new RecordingNameContext(DateTimeOffset.Now, s.Category, s.Discipline, s.SeriesNumber, cameraSuffix);
         return FilenameFormatter.Build(s.FilenameFormat, ctx);
-    }
-
-    private static string BuildCalibrationSummary(IReadOnlyList<CameraProfileRowViewModel> rows)
-    {
-        if (rows.Count == 0) return "No cameras to calibrate.";
-        var lines = rows.Select(r =>
-            $"{r.DisplayName}: {r.CalibratedLatencyMs:0.#} ms (sync +{r.SyncOffsetMs:0.#} ms)");
-        return string.Join("\n", lines);
     }
 }

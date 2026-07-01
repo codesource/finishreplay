@@ -44,16 +44,8 @@
                             <TextBlock TextWrapping="Wrap" Foreground="#6B7280" FontSize="12"
                                        Text="Transcode re-encodes every camera to MJPEG AVI. Passthrough copies RTSP/H.264 to MP4 at original quality (no re-encode); non-H.264 sources fall back to transcode." />
                         </StackPanel>
-                        <Separator />
-                        <TextBlock Text="Event context (used in filenames)" FontWeight="SemiBold" />
-                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" >
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Category" VerticalAlignment="Center" Margin="0,4" />
-                            <TextBox Grid.Row="0" Grid.Column="1" Margin="0,4" Text="{Binding Category}" Watermark="e.g. U18" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Discipline" VerticalAlignment="Center" Margin="0,4" />
-                            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,4" Text="{Binding Discipline}" Watermark="e.g. 100m" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Series #" VerticalAlignment="Center" Margin="0,4" />
-                            <NumericUpDown Grid.Row="2" Grid.Column="1" Margin="0,4" Minimum="1" Increment="1" Value="{Binding SeriesNumber}" />
-                        </Grid>
+                        <TextBlock Text="Event context (category, discipline, series) is set on the Recording screen."
+                                   Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" Margin="0,4,0,0" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

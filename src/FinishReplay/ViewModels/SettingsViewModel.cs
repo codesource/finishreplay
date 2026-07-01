@@ -101,9 +101,6 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _category = "";
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _discipline = "";
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private int _seriesNumber = 1;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _filenameFormat = "";
 
     [ObservableProperty] private string _newCameraType;
@@ -120,7 +117,8 @@ public partial class SettingsViewModel : ViewModelBase
         {
             var sample = Cameras.FirstOrDefault()?.Suffix;
             if (string.IsNullOrWhiteSpace(sample)) sample = "cam";
-            var ctx = new RecordingNameContext(DateTimeOffset.Now, Category, Discipline, SeriesNumber, sample);
+            var s = _settings.Current; // event context is edited on the Recording screen
+            var ctx = new RecordingNameContext(DateTimeOffset.Now, s.Category, s.Discipline, s.SeriesNumber, sample);
             return FilenameFormatter.Build(FilenameFormat, ctx) + ".mp4";
         }
     }
@@ -186,9 +184,6 @@ public partial class SettingsViewModel : ViewModelBase
         TimingSerialPort = s.TimingSerialPort;
         TimingBaudRate = s.TimingBaudRate <= 0 ? 9600 : s.TimingBaudRate;
         RefreshSerialPorts();
-        Category = s.Category;
-        Discipline = s.Discipline;
-        SeriesNumber = s.SeriesNumber;
         FilenameFormat = string.IsNullOrWhiteSpace(s.FilenameFormat)
             ? "{date}-{category}-{discipline}-{serie}-{camera}"
             : s.FilenameFormat;
@@ -213,9 +208,6 @@ public partial class SettingsViewModel : ViewModelBase
         s.TimingSource = TimingSource;
         s.TimingSerialPort = TimingSerialPort ?? "";
         s.TimingBaudRate = TimingBaudRate <= 0 ? 9600 : TimingBaudRate;
-        s.Category = Category;
-        s.Discipline = Discipline;
-        s.SeriesNumber = SeriesNumber;
         s.FilenameFormat = FilenameFormat;
         s.Cameras = Cameras.Select(c => c.Profile).ToList();
     }

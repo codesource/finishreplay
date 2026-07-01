@@ -77,9 +77,27 @@
             </Border>
         </DockPanel>
 
-        <!-- Right: camera selection, calibration, status -->
+        <!-- Right: event context, camera selection, status -->
         <ScrollViewer Grid.Column="1">
             <StackPanel Spacing="16">
+
+                <!-- Event context (required to record) -->
+                <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="12">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Event" FontWeight="SemiBold" />
+                        <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Category *" VerticalAlignment="Center" Margin="0,4" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Margin="0,4" Text="{Binding Category}" Watermark="required — e.g. U18" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Discipline *" VerticalAlignment="Center" Margin="0,4" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,4" Text="{Binding Discipline}" Watermark="required — e.g. 100m" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Series #" VerticalAlignment="Center" Margin="0,4" />
+                            <NumericUpDown Grid.Row="2" Grid.Column="1" Margin="0,4" Minimum="1" Increment="1" Value="{Binding SeriesNumber}" />
+                        </Grid>
+                        <TextBlock Text="Category and discipline are required before recording."
+                                   Foreground="#DC2626" FontSize="12"
+                                   IsVisible="{Binding !HasEventContext}" />
+                    </StackPanel>
+                </Border>
 
                 <StackPanel Spacing="6">
                     <TextBlock Text="Cameras (recorded together)" FontWeight="SemiBold" />
@@ -94,36 +112,20 @@
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
                                                 <TextBlock Foreground="#6B7280" FontSize="12"
-                                                           Text="{Binding CalibrationStatus}" />
+                                                           Text="{Binding SourceType}" />
                                             </StackPanel>
                                             <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="#2563EB"
-                                                       Text="{Binding SyncOffsetMs, StringFormat='+{0:0.#} ms'}" />
+                                                       FontSize="12" ToolTip.Tip="Automatic sync offset"
+                                                       Text="{Binding SyncOffsetMs, StringFormat='sync +{0:0.#} ms'}" />
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Border>
-                    <TextBlock Text="Configure cameras and filename format in Settings."
-                               Foreground="#6B7280" FontSize="12" />
+                    <TextBlock Text="Latency is calibrated automatically; configure cameras and filename format in Settings."
+                               Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>
-
-                <!-- Latency calibration -->
-                <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1"
-                        CornerRadius="6" Padding="12">
-                    <StackPanel Spacing="8">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="Latency calibration" FontWeight="SemiBold"
-                                       VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Content="Calibrate" Command="{Binding CalibrateCommand}"
-                                    IsEnabled="{Binding !IsCalibrating}" />
-                        </Grid>
-                        <TextBlock Text="Runs automatically across all cameras (and the timing device when connected); offsets sync the replays."
-                                   Foreground="#6B7280" TextWrapping="Wrap" FontSize="12" />
-                        <TextBlock Text="{Binding CalibrationSummary}" Foreground="#374151"
-                                   TextWrapping="Wrap" FontSize="12" />
-                    </StackPanel>
-                </Border>
 
                 <!-- Read-only recording buffers (edit in Settings) -->
                 <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1"
