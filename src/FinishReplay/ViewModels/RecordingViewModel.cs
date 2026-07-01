@@ -158,6 +158,7 @@ public partial class RecordingViewModel : ViewModelBase
                     PreRecordSeconds = s.PreRecordSeconds, // keep this much rolling pre-roll ready
                 };
                 live.FrameReady += row.SubmitJpeg;
+                live.Error += row.SetError;
                 live.Start();
                 _live[profile.Id] = live;
             }

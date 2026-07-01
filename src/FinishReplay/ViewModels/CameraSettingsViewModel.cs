@@ -20,7 +20,6 @@ public partial class CameraSettingsViewModel : ObservableObject
 
     private readonly ISettingsService _settings;
     private readonly ICameraManager _cameraManager;
-    private readonly HttpClient _http = new();
 
     private HashSet<string> _usbIds = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<CameraDevice> _lastUsb = Array.Empty<CameraDevice>();
@@ -183,17 +182,10 @@ public partial class CameraSettingsViewModel : ObservableObject
             return;
         }
 
-        bool ok;
-        if (profile.SourceType == RtspCameraProvider.Type)
-        {
-            var (host, port) = CameraReachability.ParseRtspEndpoint(profile.SourceUrl);
-            ok = await CameraReachability.CheckTcpAsync(host, port, CheckTimeout);
-        }
-        else
-        {
-            ok = await CameraReachability.CheckHttpAsync(profile.SourceUrl, _http, CheckTimeout);
-        }
-
+        // Reachability = TCP connect to the camera's host:port (works for MJPEG/HTTP and RTSP alike,
+        // and doesn't false-negative on auth/path like an HTTP status check would).
+        var (host, port) = CameraReachability.ParseEndpoint(profile.SourceUrl);
+        var ok = await CameraReachability.CheckTcpAsync(host, port, CheckTimeout);
         row.Status = ok ? CameraStatus.Reachable : CameraStatus.Unreachable;
     }
 

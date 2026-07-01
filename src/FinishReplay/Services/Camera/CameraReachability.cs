@@ -54,4 +54,21 @@ public static class CameraReachability
             return (uri.Host, uri.Port > 0 ? uri.Port : 554);
         return ("", 554);
     }
+
+    /// <summary>
+    /// Extract host and port from any camera URL (http/https/rtsp), filling in the scheme's default
+    /// port. Used for a TCP reachability check that doesn't depend on HTTP status/auth/path — a
+    /// working camera has its port open, which is what we want to report.
+    /// </summary>
+    public static (string Host, int Port) ParseEndpoint(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && !string.IsNullOrEmpty(uri.Host))
+        {
+            var port = uri.Port;
+            if (port <= 0)
+                port = uri.Scheme.ToLowerInvariant() switch { "https" => 443, "rtsp" => 554, _ => 80 };
+            return (uri.Host, port);
+        }
+        return ("", 0);
+    }
 }

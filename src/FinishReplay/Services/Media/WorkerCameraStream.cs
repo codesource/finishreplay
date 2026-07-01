@@ -34,29 +34,39 @@ public sealed class WorkerCameraStream : ICameraStream
         var start = MonotonicClock.Now;
         long seq = 0;
 
+        string? error = null;
         await foreach (var message in MediaWorkerProtocol.ReadAsync(worker.StandardOutput, cancellationToken).ConfigureAwait(false))
         {
-            switch (message.Type)
+            if (message.Type == MediaMessageType.Frame)
             {
-                case MediaMessageType.Frame:
-                    yield return new VideoFrame
-                    {
-                        SequenceNumber = seq++,
-                        Timestamp = MonotonicClock.Now - start,
-                        Format = VideoFrameFormat.Jpeg,
-                        Data = message.Payload,
-                    };
-                    break;
-
-                case MediaMessageType.Error:
-                case MediaMessageType.Eos:
-                    yield break;
-
-                // Log / Ready / Unknown are informational.
+                yield return new VideoFrame
+                {
+                    SequenceNumber = seq++,
+                    Timestamp = MonotonicClock.Now - start,
+                    Format = VideoFrameFormat.Jpeg,
+                    Data = message.Payload,
+                };
             }
+            else if (message.Type == MediaMessageType.Error)
+            {
+                error = System.Text.Encoding.UTF8.GetString(message.Payload);
+                break;
+            }
+            else if (message.Type == MediaMessageType.Eos)
+            {
+                break;
+            }
+            // Log / Ready / Unknown are informational.
         }
 
-        // Stream ended (normal EOS or worker crash) — enumeration completes; the app is unaffected.
+        // Surface a worker error when nothing was produced, so the UI shows the cause rather than
+        // hanging on "waiting for frames". A crash mid-stream just ends cleanly (app unaffected).
+        if (seq == 0 && !cancellationToken.IsCancellationRequested)
+        {
+            error ??= worker.StandardErrorTail?.Trim();
+            if (!string.IsNullOrEmpty(error))
+                throw new InvalidOperationException(error);
+        }
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

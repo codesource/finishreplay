@@ -136,12 +136,12 @@
                         </Border>
 
                         <!-- header row -->
-                        <Grid ColumnDefinitions="84,34,*,96,110,34,48,34" Margin="4,6,4,0">
+                        <Grid ColumnDefinitions="84,34,*,110,72,34,48,34" Margin="4,6,4,0">
                             <TextBlock Grid.Column="0" Text="Status" FontSize="12" Foreground="#6B7280" />
                             <TextBlock Grid.Column="1" Text="On" FontSize="12" Foreground="#6B7280" />
                             <TextBlock Grid.Column="2" Text="Name" FontSize="12" Foreground="#6B7280" />
-                            <TextBlock Grid.Column="3" Text="Suffix" FontSize="12" Foreground="#6B7280" />
-                            <TextBlock Grid.Column="4" Text="Source" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Grid.Column="3" Text="Source" FontSize="12" Foreground="#6B7280" />
+                            <TextBlock Grid.Column="4" Text="Suffix" FontSize="12" Foreground="#6B7280" />
                         </Grid>
                     </StackPanel>
 
@@ -149,15 +149,17 @@
                         <ItemsControl ItemsSource="{Binding Cameras}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:CameraSettingRowViewModel">
-                                    <Grid ColumnDefinitions="84,34,*,96,110,34,48,34" Margin="4,6">
+                                    <Grid ColumnDefinitions="84,34,*,110,72,34,48,34" Margin="4,6">
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
                                             <Ellipse Width="9" Height="9" Fill="{Binding StatusBrush}" />
                                             <TextBlock Text="{Binding StatusText}" FontSize="12" />
                                         </StackPanel>
                                         <CheckBox Grid.Column="1" IsChecked="{Binding Enabled}" VerticalAlignment="Center" />
-                                        <TextBox Grid.Column="2" Margin="0,0,6,0" Text="{Binding DisplayName}" />
-                                        <TextBox Grid.Column="3" Margin="0,0,6,0" Text="{Binding Suffix}" />
-                                        <TextBlock Grid.Column="4" Text="{Binding SourceLabel}" VerticalAlignment="Center"
+                                        <TextBlock Grid.Column="2" Text="{Binding DisplayName}" VerticalAlignment="Center"
+                                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,6,0" />
+                                        <TextBlock Grid.Column="3" Text="{Binding SourceLabel}" VerticalAlignment="Center"
+                                                   Foreground="#6B7280" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,0,6,0" />
+                                        <TextBlock Grid.Column="4" Text="{Binding Suffix}" VerticalAlignment="Center"
                                                    Foreground="#6B7280" FontSize="12" TextTrimming="CharacterEllipsis" />
                                         <Button Grid.Column="5" Content="⚙" Margin="0,0,6,0" ToolTip.Tip="Configure"
                                                 Click="OnConfigureCameraClick" />

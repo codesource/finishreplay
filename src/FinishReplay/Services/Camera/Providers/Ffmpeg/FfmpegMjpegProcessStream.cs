@@ -44,6 +44,14 @@ public sealed class FfmpegMjpegProcessStream : ICameraStream
                 Data = jpeg,
             };
         }
+
+        // ffmpeg produced no frames and exited — surface why (device busy, bad name, codec, etc.).
+        if (seq == 0 && !cancellationToken.IsCancellationRequested)
+        {
+            var error = process.StandardErrorTail?.Trim();
+            if (!string.IsNullOrEmpty(error))
+                throw new InvalidOperationException(error);
+        }
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

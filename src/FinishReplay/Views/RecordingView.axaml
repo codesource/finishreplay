@@ -63,6 +63,13 @@
                                         <TextBlock Text="waiting for frames…" Foreground="#6B7280" FontSize="12"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
                                                    IsVisible="{Binding Preview, Converter={x:Static ObjectConverters.IsNull}}" />
+
+                                        <!-- Capture error (replaces the placeholder when present) -->
+                                        <Border Background="#111827" Padding="10" VerticalAlignment="Stretch"
+                                                IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                            <TextBlock Text="{Binding ErrorText}" Foreground="#F87171" FontSize="11"
+                                                       TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

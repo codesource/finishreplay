@@ -6,6 +6,8 @@ using FinishReplay.Services.Camera.Providers;
 
 namespace FinishReplay.ViewModels;
 
+// name + suffix are edited here (moved out of the camera row).
+
 /// <summary>
 /// Per-camera configuration, type-aware like Kinovea's dialog:
 /// - USB: capture format / resolution / frame rate (wired into the ffmpeg capture), plus a
@@ -19,12 +21,13 @@ public partial class CameraConfigViewModel : ObservableObject
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(3);
 
     private readonly CameraProfile _profile;
-    private readonly HttpClient _http = new();
 
     public CameraConfigViewModel(CameraProfile profile)
     {
         _profile = profile;
         IsUsb = profile.SourceType == UsbCameraProvider.Type;
+        _name = profile.DisplayName;
+        _suffix = profile.Suffix;
 
         if (IsUsb)
             LoadUsb();
@@ -32,12 +35,17 @@ public partial class CameraConfigViewModel : ObservableObject
             LoadNetwork();
     }
 
-    public string Title => _profile.DisplayName;
     public string DeviceId => _profile.Id;
 
     public bool IsUsb { get; }
     public bool IsNetwork => !IsUsb;
     public bool CanShowDriverProperties => IsUsb && OperatingSystem.IsWindows();
+
+    // Name + suffix (shown for every camera type).
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(CanApply))] private string _name;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(CanApply))] private string _suffix;
+
+    public bool CanApply => !string.IsNullOrWhiteSpace(Name) && !string.IsNullOrWhiteSpace(Suffix);
 
     // ---- USB ----
     public IReadOnlyList<string> Formats { get; } = new[] { Auto, "mjpeg", "yuyv422", "rgb24", "nv12" };
@@ -67,23 +75,17 @@ public partial class CameraConfigViewModel : ObservableObject
     private async Task Test()
     {
         TestStatus = "Testing…";
-        var url = FinalUrl;
-        bool ok;
-        if (NetworkFormat == RtspCameraProvider.Type)
-        {
-            var (host, port) = CameraReachability.ParseRtspEndpoint(url);
-            ok = await CameraReachability.CheckTcpAsync(host, port, TestTimeout);
-        }
-        else
-        {
-            ok = await CameraReachability.CheckHttpAsync(url, _http, TestTimeout);
-        }
+        var (host, port) = CameraReachability.ParseEndpoint(FinalUrl);
+        var ok = await CameraReachability.CheckTcpAsync(host, port, TestTimeout);
         TestStatus = ok ? "✓ Reachable" : "✗ Not reachable";
     }
 
     /// <summary>Persist the edits into the profile.</summary>
     public void Apply()
     {
+        _profile.DisplayName = Name.Trim();
+        _profile.Suffix = Suffix.Trim();
+
         if (IsUsb)
         {
             _profile.PixelFormat = Format == Auto ? null : Format;

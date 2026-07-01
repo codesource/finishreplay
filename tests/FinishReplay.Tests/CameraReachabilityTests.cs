@@ -18,6 +18,19 @@ public class CameraReachabilityTests
         Assert.Equal(port, p);
     }
 
+    [Theory]
+    [InlineData("http://cam/video", "cam", 80)]
+    [InlineData("http://cam:8081/stream", "cam", 8081)]
+    [InlineData("https://cam/video", "cam", 443)]
+    [InlineData("rtsp://cam/live", "cam", 554)]
+    [InlineData("rtsp://cam:10554/live", "cam", 10554)]
+    public void Parses_endpoint_with_default_ports(string url, string host, int port)
+    {
+        var (h, p) = CameraReachability.ParseEndpoint(url);
+        Assert.Equal(host, h);
+        Assert.Equal(port, p);
+    }
+
     [Fact]
     public async Task Tcp_check_is_true_for_a_listening_port()
     {

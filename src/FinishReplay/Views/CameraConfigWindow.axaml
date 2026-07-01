@@ -12,7 +12,15 @@
 
     <StackPanel Margin="20" Spacing="14">
 
-        <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" Foreground="#2563EB" />
+        <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" Foreground="#2563EB" />
+
+        <!-- Name + suffix (all camera types) -->
+        <Grid ColumnDefinitions="130,*,80,80">
+            <TextBlock Grid.Column="0" Text="Name *" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Margin="0,0,8,0" Text="{Binding Name}" Watermark="required" />
+            <TextBlock Grid.Column="2" Text="Suffix *" VerticalAlignment="Center" />
+            <TextBox Grid.Column="3" Text="{Binding Suffix}" Watermark="required" />
+        </Grid>
 
         <!-- USB: format / resolution / frame rate + driver properties -->
         <StackPanel Spacing="10" IsVisible="{Binding IsUsb}">
@@ -83,7 +91,8 @@
 
         <!-- Apply / Cancel -->
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-            <Button Content="Apply" Click="OnApplyClick" Background="#2563EB" Foreground="White" Padding="18,6" />
+            <Button Content="Apply" Click="OnApplyClick" IsEnabled="{Binding CanApply}"
+                    Background="#2563EB" Foreground="White" Padding="18,6" />
             <Button Content="Cancel" Click="OnCancelClick" Padding="18,6" />
         </StackPanel>
     </StackPanel>

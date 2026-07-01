@@ -45,6 +45,9 @@ public sealed class LiveCamera : IAsyncDisposable
     /// <summary>Raised on the capture thread for each JPEG frame; subscribers must marshal to the UI.</summary>
     public event Action<byte[]>? FrameReady;
 
+    /// <summary>Raised when capture fails (bad URL/device, ffmpeg missing, decoder error). UI must marshal.</summary>
+    public event Action<string>? Error;
+
     /// <summary>Length of the rolling pre-record buffer kept ahead of a start.</summary>
     public double PreRecordSeconds
     {
@@ -164,9 +167,10 @@ public sealed class LiveCamera : IAsyncDisposable
         {
             // Normal shutdown.
         }
-        catch
+        catch (Exception ex)
         {
-            // TODO: surface stream errors (bad URL, disconnect) to the UI/log.
+            // Surface stream errors (bad URL/device, ffmpeg missing, decoder failure) to the UI.
+            Error?.Invoke(ex.Message);
         }
     }
 

@@ -53,7 +53,15 @@ public partial class CameraProfileRowViewModel : ObservableObject
     [ObservableProperty]
     private Bitmap? _preview;
 
+    /// <summary>Capture error for this camera (e.g. ffmpeg missing / device busy), or null.</summary>
+    [ObservableProperty]
+    private string? _errorText;
+
     private long _lastPreviewTicks;
+
+    /// <summary>Show a capture error in the preview tile (marshals to the UI thread).</summary>
+    public void SetError(string message) =>
+        Dispatcher.UIThread.Post(() => ErrorText = message);
 
     /// <summary>
     /// Decode a JPEG frame (off the UI thread) and publish it as the preview, throttled to ~15 fps
@@ -82,6 +90,7 @@ public partial class CameraProfileRowViewModel : ObservableObject
             var old = Preview;
             Preview = bitmap;
             old?.Dispose();
+            ErrorText = null; // a frame arrived — clear any prior error
         });
     }
 

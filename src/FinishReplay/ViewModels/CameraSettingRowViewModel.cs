@@ -55,9 +55,11 @@ public partial class CameraSettingRowViewModel : ObservableObject
         _ => Color.Parse("#D1D5DB"),                         // light gray
     });
 
-    /// <summary>Re-raise the computed display properties after the config dialog edits the profile.</summary>
+    /// <summary>Sync display + re-raise computed properties after the config dialog edits the profile.</summary>
     public void NotifyConfigChanged()
     {
+        DisplayName = Profile.DisplayName;
+        Suffix = Profile.Suffix;
         OnPropertyChanged(nameof(SourceType));
         OnPropertyChanged(nameof(IsUsb));
         OnPropertyChanged(nameof(SourceLabel));
