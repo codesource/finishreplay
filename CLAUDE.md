@@ -66,6 +66,10 @@ other transports and H.264 recording remain placeholders:
   the worker exe isn't found (`MediaWorkerLocator`). The worker needs FFmpeg **native libs** at runtime
   (from the `Sdcb.FFmpeg.runtime.*` packages / bundled per platform); it's compiled but not run in CI.
 
+**License:** the project is **GPLv3** (`LICENSE`), so bundling the GPL FFmpeg build (the
+`Sdcb.FFmpeg.runtime.*` binaries are `--enable-gpl`) is intentional and fine — no LGPL swap needed.
+Keep new dependencies GPLv3-compatible, and keep the FFmpeg source-availability note in the README.
+
 FFmpeg is **auto-detected** by `FfmpegLocator` (RTSP/USB/passthrough/mp4-replay all use it): it searches
 the configured path, the app's own folder + a bundled `ffmpeg/` subfolder (the packaging drop-point),
 the app-data ffmpeg dir, PATH, and common install locations (winget/choco/scoop/Program Files,
