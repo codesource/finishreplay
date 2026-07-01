@@ -63,6 +63,25 @@ public class UsbCaptureTests
     }
 
     [Fact]
+    public void Usb_args_apply_video_size_and_pixel_format()
+    {
+        var args = FfmpegArguments.ForUsbToMjpeg(UsbPlatform.Windows, "Cam", fps: 30, width: 1280, height: 720, pixelFormat: "mjpeg").ToList();
+
+        Assert.Equal("1280x720", args[args.IndexOf("-video_size") + 1]);
+        Assert.Equal("mjpeg", args[args.IndexOf("-vcodec") + 1]); // dshow uses -vcodec for mjpeg
+        // capture options precede the input.
+        Assert.True(args.IndexOf("-video_size") < args.IndexOf("-i"));
+        Assert.True(args.IndexOf("-vcodec") < args.IndexOf("-i"));
+    }
+
+    [Fact]
+    public void Linux_usb_pixel_format_uses_input_format()
+    {
+        var args = FfmpegArguments.ForUsbToMjpeg(UsbPlatform.Linux, "/dev/video0", pixelFormat: "yuyv422").ToList();
+        Assert.Equal("yuyv422", args[args.IndexOf("-input_format") + 1]);
+    }
+
+    [Fact]
     public void Macos_usb_args_use_avfoundation_input()
     {
         var args = FfmpegArguments.ForUsbToMjpeg(UsbPlatform.MacOS, "0:none").ToList();

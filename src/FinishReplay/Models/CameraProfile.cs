@@ -21,6 +21,12 @@ public sealed class CameraProfile
     /// <summary>Connection URL for network sources; empty for local USB devices.</summary>
     public string SourceUrl { get; set; } = "";
 
+    // Optional capture configuration for USB cameras; null = camera/driver default.
+    public string? PixelFormat { get; set; }
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public double? FrameRate { get; set; }
+
     /// <summary>End-to-end latency measured by calibration, in milliseconds (null = not calibrated).</summary>
     public double? CalibratedLatencyMs { get; set; }
 

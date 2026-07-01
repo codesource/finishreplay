@@ -52,4 +52,19 @@ public partial class SettingsView : UserControl
         if (!string.IsNullOrEmpty(picked))
             vm.FfmpegPath = picked;
     }
+
+    // Opens the per-camera configuration dialog (needs the owner window, so it lives in code-behind).
+    private async void OnConfigureCameraClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: CameraSettingRowViewModel row })
+            return;
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+            return;
+
+        var dialog = new CameraConfigWindow(row.Profile);
+        await dialog.ShowDialog(owner);
+
+        if (dialog.Applied && DataContext is SettingsViewModel vm)
+            vm.CameraSettings.ConfigureApplied(row);
+    }
 }

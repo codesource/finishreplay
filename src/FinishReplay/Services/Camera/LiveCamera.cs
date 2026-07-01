@@ -134,7 +134,14 @@ public sealed class LiveCamera : IAsyncDisposable
     {
         try
         {
-            await using var stream = await _registry.OpenAsync(_profile.ToDevice(), CameraSettings.Default, ct).ConfigureAwait(false);
+            var settings = new CameraSettings
+            {
+                Width = _profile.Width,
+                Height = _profile.Height,
+                FrameRate = _profile.FrameRate,
+                PixelFormat = _profile.PixelFormat,
+            };
+            await using var stream = await _registry.OpenAsync(_profile.ToDevice(), settings, ct).ConfigureAwait(false);
             await foreach (var frame in stream.ReadFramesAsync(ct).ConfigureAwait(false))
             {
                 if (frame.Format != VideoFrameFormat.Jpeg)

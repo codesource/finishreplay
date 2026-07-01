@@ -7,5 +7,8 @@ public sealed class CameraSettings
     public int? Height { get; init; }
     public double? FrameRate { get; init; }
 
+    /// <summary>Requested capture pixel format / codec (e.g. "mjpeg", "yuyv422"); null = default.</summary>
+    public string? PixelFormat { get; init; }
+
     public static CameraSettings Default { get; } = new();
 }

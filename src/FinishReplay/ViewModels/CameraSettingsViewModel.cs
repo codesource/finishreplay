@@ -157,6 +157,13 @@ public partial class CameraSettingsViewModel : ObservableObject
     private Task TestCamera(CameraSettingRowViewModel? row) =>
         row is null ? Task.CompletedTask : TestCameraAsync(row);
 
+    /// <summary>Called after the config dialog applied changes to a camera: refresh display + re-test.</summary>
+    public void ConfigureApplied(CameraSettingRowViewModel row)
+    {
+        row.NotifyConfigChanged();
+        _ = TestCameraAsync(row);
+    }
+
     private async Task InitializeAsync()
     {
         await RefreshUsbAsync();

@@ -1,0 +1,91 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:FinishReplay.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="420"
+        x:Class="FinishReplay.Views.CameraConfigWindow"
+        x:DataType="vm:CameraConfigViewModel"
+        Width="460" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Camera configuration">
+
+    <StackPanel Margin="20" Spacing="14">
+
+        <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" Foreground="#2563EB" />
+
+        <!-- USB: format / resolution / frame rate + driver properties -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsUsb}">
+            <Grid ColumnDefinitions="130,*" RowDefinitions="Auto,Auto,Auto" >
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" Margin="0,4" />
+                <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,4" HorizontalAlignment="Stretch"
+                          ItemsSource="{Binding Formats}" SelectedItem="{Binding Format}" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Image size" VerticalAlignment="Center" Margin="0,4" />
+                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,4" HorizontalAlignment="Stretch"
+                          ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution}" />
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Frame rate" VerticalAlignment="Center" Margin="0,4" />
+                <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,4" HorizontalAlignment="Stretch"
+                          ItemsSource="{Binding FrameRates}" SelectedItem="{Binding FrameRate}" />
+            </Grid>
+            <Button Content="Driver properties…" Click="OnDriverPropertiesClick"
+                    IsVisible="{Binding CanShowDriverProperties}" HorizontalAlignment="Left" />
+            <TextBlock TextWrapping="Wrap" Foreground="#6B7280" FontSize="12"
+                       Text="Exposure, gain, focus and white balance are set in the camera's own driver dialog (Driver properties); the driver keeps those values for capture." />
+        </StackPanel>
+
+        <!-- Network: host / port / format / auth → final URL + test -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsNetwork}">
+            <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Network" FontWeight="SemiBold" FontSize="13" />
+                    <Grid ColumnDefinitions="120,*,60,90">
+                        <TextBlock Grid.Column="0" Text="Host (IP address)" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Margin="0,0,8,0" Text="{Binding Host}" Watermark="camera-box.local" />
+                        <TextBlock Grid.Column="2" Text="Port" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="3" Text="{Binding Port}" Watermark="8081" />
+                    </Grid>
+                    <Grid ColumnDefinitions="120,*">
+                        <TextBlock Grid.Column="0" Text="Format" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" HorizontalAlignment="Left" Width="120"
+                                  ItemsSource="{Binding NetworkFormats}" SelectedItem="{Binding NetworkFormat}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="120,*">
+                        <TextBlock Grid.Column="0" Text="Path" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding Path}" Watermark="stream" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Authentication" FontWeight="SemiBold" FontSize="13" />
+                    <Grid ColumnDefinitions="120,*">
+                        <TextBlock Grid.Column="0" Text="User" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding User}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="120,*">
+                        <TextBlock Grid.Column="0" Text="Password" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding Password}" PasswordChar="•" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Spacing="2">
+                <TextBlock Text="Final URL" FontWeight="SemiBold" FontSize="12" Foreground="#6B7280" />
+                <TextBox Text="{Binding FinalUrl, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="12" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="Test" Command="{Binding TestCommand}" />
+                <TextBlock Text="{Binding TestStatus}" VerticalAlignment="Center" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Apply / Cancel -->
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Apply" Click="OnApplyClick" Background="#2563EB" Foreground="White" Padding="18,6" />
+            <Button Content="Cancel" Click="OnCancelClick" Padding="18,6" />
+        </StackPanel>
+    </StackPanel>
+
+</Window>

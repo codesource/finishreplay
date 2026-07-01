@@ -81,7 +81,17 @@ public sealed class UsbCameraProvider : ICameraProvider
                 UsbPlatform.Linux => ("v4l2", device.Id),
                 _ => throw new PlatformNotSupportedException("USB capture is not supported on this platform."),
             };
-            var workerArgs = new[] { "--url", url, "--format", fmt, "--fps", fps.ToString() };
+            var workerArgs = new List<string> { "--url", url, "--format", fmt, "--fps", fps.ToString() };
+            if (settings is { Width: > 0, Height: > 0 })
+            {
+                workerArgs.Add("--video-size");
+                workerArgs.Add($"{settings.Width}x{settings.Height}");
+            }
+            if (!string.IsNullOrWhiteSpace(settings.PixelFormat))
+            {
+                workerArgs.Add("--pixel-format");
+                workerArgs.Add(settings.PixelFormat);
+            }
             ICameraStream isolated = new WorkerCameraStream(device, _ => new FfmpegProcess(worker, workerArgs));
             return Task.FromResult(isolated);
         }
@@ -92,7 +102,7 @@ public sealed class UsbCameraProvider : ICameraProvider
 
         // AVFoundation opens by index; ":none" selects the video device with no audio.
         var deviceId = platform == UsbPlatform.MacOS ? $"{device.Id}:none" : device.Id;
-        var args = FfmpegArguments.ForUsbToMjpeg(platform, deviceId, fps);
+        var args = FfmpegArguments.ForUsbToMjpeg(platform, deviceId, fps, width: settings.Width, height: settings.Height, pixelFormat: settings.PixelFormat);
 
         ICameraStream stream = new FfmpegMjpegProcessStream(device, _ => new FfmpegProcess(exe, args));
         return Task.FromResult(stream);

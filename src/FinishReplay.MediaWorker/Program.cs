@@ -50,10 +50,23 @@ internal static class Program
     private static void RunDecodeLoop(Options o)
     {
         MediaDictionary? options = null;
+        void SetOption(string key, string value) => (options ??= new MediaDictionary())[key] = value;
+
         if (o.RtspTcp)
+            SetOption("rtsp_transport", "tcp");
+        if (o.Fps > 0)
+            SetOption("framerate", o.Fps.ToString());
+        if (!string.IsNullOrWhiteSpace(o.VideoSize))
+            SetOption("video_size", o.VideoSize);
+        if (!string.IsNullOrWhiteSpace(o.PixelFormat))
         {
-            options = new MediaDictionary();
-            options["rtsp_transport"] = "tcp";
+            if (o.PixelFormat.Equals("mjpeg", StringComparison.OrdinalIgnoreCase))
+                SetOption("vcodec", "mjpeg");           // dshow
+            else
+            {
+                SetOption("pixel_format", o.PixelFormat); // dshow / avfoundation
+                SetOption("input_format", o.PixelFormat); // v4l2
+            }
         }
 
         InputFormat? inputFormat = o.Format is null ? null : InputFormat.FindByShortName(o.Format);
@@ -113,6 +126,8 @@ internal static class Program
                 case "--url" when i + 1 < args.Length: o.Url = args[++i]; break;
                 case "--format" when i + 1 < args.Length: o.Format = args[++i]; break;
                 case "--fps" when i + 1 < args.Length && int.TryParse(args[i + 1], out var f): o.Fps = f; i++; break;
+                case "--video-size" when i + 1 < args.Length: o.VideoSize = args[++i]; break;
+                case "--pixel-format" when i + 1 < args.Length: o.PixelFormat = args[++i]; break;
                 case "--rtsp-tcp": o.RtspTcp = true; break;
             }
         }
@@ -127,5 +142,7 @@ internal static class Program
         public string? Format;
         public bool RtspTcp;
         public int Fps = 30;
+        public string? VideoSize;
+        public string? PixelFormat;
     }
 }

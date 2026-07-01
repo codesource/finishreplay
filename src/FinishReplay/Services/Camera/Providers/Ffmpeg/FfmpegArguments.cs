@@ -18,33 +18,56 @@ public static class FfmpegArguments
     /// (dshow / avfoundation / v4l2). <paramref name="deviceId"/> is the platform handle:
     /// the dshow device name, the avfoundation index (e.g. "0:none"), or the v4l2 path (/dev/videoN).
     /// </summary>
-    public static IReadOnlyList<string> ForUsbToMjpeg(UsbPlatform platform, string deviceId, int fps = 30, int quality = 5)
+    public static IReadOnlyList<string> ForUsbToMjpeg(
+        UsbPlatform platform,
+        string deviceId,
+        int fps = 30,
+        int quality = 5,
+        int? width = null,
+        int? height = null,
+        string? pixelFormat = null)
     {
-        var args = new List<string> { "-hide_banner", "-loglevel", "error", "-nostdin" };
+        var format = platform switch
+        {
+            UsbPlatform.Windows => "dshow",
+            UsbPlatform.MacOS => "avfoundation",
+            UsbPlatform.Linux => "v4l2",
+            _ => throw new PlatformNotSupportedException("USB capture is not supported on this platform."),
+        };
 
+        var args = new List<string> { "-hide_banner", "-loglevel", "error", "-nostdin", "-f", format };
+
+        // Input (capture) options — must precede -i.
         if (fps > 0)
         {
-            args.Add("-framerate"); // input option: requested capture rate
+            args.Add("-framerate");
             args.Add(fps.ToString());
         }
-
-        switch (platform)
+        if (width is > 0 && height is > 0)
         {
-            case UsbPlatform.Windows:
-                args.Add("-f"); args.Add("dshow");
-                args.Add("-i"); args.Add($"video={deviceId}");
-                break;
-            case UsbPlatform.MacOS:
-                args.Add("-f"); args.Add("avfoundation");
-                args.Add("-i"); args.Add(deviceId);
-                break;
-            case UsbPlatform.Linux:
-                args.Add("-f"); args.Add("v4l2");
-                args.Add("-i"); args.Add(deviceId);
-                break;
-            default:
-                throw new PlatformNotSupportedException("USB capture is not supported on this platform.");
+            args.Add("-video_size");
+            args.Add($"{width}x{height}");
         }
+        if (!string.IsNullOrWhiteSpace(pixelFormat))
+        {
+            // Codec/pixel selection differs per input format.
+            switch (platform)
+            {
+                case UsbPlatform.Windows:
+                    if (pixelFormat.Equals("mjpeg", StringComparison.OrdinalIgnoreCase)) { args.Add("-vcodec"); args.Add("mjpeg"); }
+                    else { args.Add("-pixel_format"); args.Add(pixelFormat); }
+                    break;
+                case UsbPlatform.Linux:
+                    args.Add("-input_format"); args.Add(pixelFormat); // v4l2 accepts "mjpeg", "yuyv422", …
+                    break;
+                default:
+                    args.Add("-pixel_format"); args.Add(pixelFormat);
+                    break;
+            }
+        }
+
+        args.Add("-i");
+        args.Add(platform == UsbPlatform.Windows ? $"video={deviceId}" : deviceId);
 
         args.Add("-an");
         args.Add("-q:v"); args.Add(quality.ToString());
