@@ -43,17 +43,22 @@ public sealed class RtspCameraProvider : ICameraProvider
     {
         var fps = (int)Math.Round(settings.FrameRate ?? 30);
 
-        // Embedded, crash-isolated worker (in-process libav in a child process), when selected & present.
-        if (_backend() == VideoBackend.IsolatedWorker && MediaWorkerLocator.Resolve() is { } worker)
+        var ffmpeg = FfmpegLocator.Resolve(_ffmpegPath());
+        var worker = MediaWorkerLocator.Resolve();
+
+        // Use the embedded, crash-isolated worker (in-process libav) when the user selected it, or
+        // automatically when external ffmpeg isn't installed — so no separate ffmpeg is required.
+        if (worker is not null && (_backend() == VideoBackend.IsolatedWorker || ffmpeg is null))
         {
             var workerArgs = new[] { "--url", device.SourceUrl, "--rtsp-tcp", "--fps", fps.ToString() };
             ICameraStream isolated = new WorkerCameraStream(device, _ => new FfmpegProcess(worker, workerArgs));
             return Task.FromResult(isolated);
         }
 
-        var exe = FfmpegLocator.Resolve(_ffmpegPath())
+        var exe = ffmpeg
             ?? throw new InvalidOperationException(
-                "FFmpeg was not found. Set the FFmpeg path in Settings, or add ffmpeg to your PATH, to capture RTSP cameras.");
+                "Neither FFmpeg nor the embedded media worker is available. Install FFmpeg (or set its path " +
+                "in Settings), or switch the video backend to the isolated worker.");
 
         var args = FfmpegArguments.ForRtspToMjpeg(device.SourceUrl, fps);
         ICameraStream stream = new FfmpegMjpegProcessStream(device, _ => new FfmpegProcess(exe, args));

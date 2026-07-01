@@ -71,8 +71,12 @@ public sealed class UsbCameraProvider : ICameraProvider
         var platform = UsbPlatformInfo.Current;
         var fps = (int)Math.Round(settings.FrameRate ?? 30);
 
-        // Embedded, crash-isolated worker (in-process libav in a child process), when selected & present.
-        if (_backend() == VideoBackend.IsolatedWorker && MediaWorkerLocator.Resolve() is { } worker)
+        var ffmpeg = FfmpegLocator.Resolve(_ffmpegPath());
+        var worker = MediaWorkerLocator.Resolve();
+
+        // Use the embedded, crash-isolated worker (in-process libav) when the user selected it, or
+        // automatically when external ffmpeg isn't installed — so no separate ffmpeg is required.
+        if (worker is not null && (_backend() == VideoBackend.IsolatedWorker || ffmpeg is null))
         {
             var (fmt, url) = platform switch
             {
@@ -96,9 +100,10 @@ public sealed class UsbCameraProvider : ICameraProvider
             return Task.FromResult(isolated);
         }
 
-        var exe = FfmpegLocator.Resolve(_ffmpegPath())
+        var exe = ffmpeg
             ?? throw new InvalidOperationException(
-                "FFmpeg was not found. Set the FFmpeg path in Settings, or add ffmpeg to your PATH, to capture USB cameras.");
+                "Neither FFmpeg nor the embedded media worker is available. Install FFmpeg (or set its path " +
+                "in Settings), or switch the video backend to the isolated worker.");
 
         // AVFoundation opens by index; ":none" selects the video device with no audio.
         var deviceId = platform == UsbPlatform.MacOS ? $"{device.Id}:none" : device.Id;
