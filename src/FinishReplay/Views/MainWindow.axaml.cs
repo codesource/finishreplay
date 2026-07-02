@@ -30,6 +30,10 @@ public partial class MainWindow : Window
         if (DataContext is not MainViewModel main)
             return;
 
+        // Settings are locked while a session is recording/finishing.
+        if (main.Recording.IsBusy)
+            return;
+
         _settingsWindow = new SettingsWindow { DataContext = main.Settings };
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show(this);

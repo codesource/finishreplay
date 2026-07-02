@@ -25,7 +25,9 @@
                                  Command="{Binding ShowReplayCommand}" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Button Content="Settings" Click="OnSettingsClick" />
+                    <Button Content="Settings" Click="OnSettingsClick"
+                            IsEnabled="{Binding !Recording.IsBusy}"
+                            ToolTip.Tip="Settings are locked while recording" />
                     <Button Content="About" Click="OnAboutClick" />
                 </StackPanel>
             </Grid>

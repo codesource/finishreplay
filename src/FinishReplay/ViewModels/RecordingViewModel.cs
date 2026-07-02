@@ -93,6 +93,7 @@ public partial class RecordingViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanStartRecording))]
     [NotifyPropertyChangedFor(nameof(CanStopRecording))]
+    [NotifyPropertyChangedFor(nameof(IsBusy))]
     [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
     [NotifyCanExecuteChangedFor(nameof(StopRecordingCommand))]
     private bool _isRecording;
@@ -100,6 +101,7 @@ public partial class RecordingViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanStartRecording))]
     [NotifyPropertyChangedFor(nameof(CanStopRecording))]
+    [NotifyPropertyChangedFor(nameof(IsBusy))]
     [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
     [NotifyCanExecuteChangedFor(nameof(StopRecordingCommand))]
     private bool _isFinishing;
@@ -121,6 +123,10 @@ public partial class RecordingViewModel : ViewModelBase
     public bool CanStartRecording =>
         SelectedCameras.Count > 0 && !IsRecording && !IsFinishing && HasEventContext;
     public bool CanStopRecording => IsRecording && !IsFinishing;
+
+    /// <summary>True while a session is recording or finishing — used to lock out Settings.</summary>
+    public bool IsBusy => IsRecording || IsFinishing;
+
     public bool HasCameras => Cameras.Count > 0;
 
     /// <summary>Category and discipline are required before a session can be recorded.</summary>
@@ -147,9 +153,11 @@ public partial class RecordingViewModel : ViewModelBase
         RebuildTimingProvider(s);
 
         Cameras.Clear();
-        foreach (var profile in s.Cameras)
+        // Only enabled cameras take part in a recording session — unchecking "On" in Settings drops
+        // the camera from the recording grid (no preview tile, no capture, not recorded).
+        foreach (var profile in s.Cameras.Where(p => p.Enabled))
         {
-            var row = new CameraProfileRowViewModel(profile) { IsSelected = profile.Enabled };
+            var row = new CameraProfileRowViewModel(profile) { IsSelected = true };
             Cameras.Add(row);
 
             // Real live capture: MJPEG (native HTTP), RTSP and USB (via ffmpeg). Start preview now.
