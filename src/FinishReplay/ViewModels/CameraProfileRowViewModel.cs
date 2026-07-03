@@ -57,7 +57,17 @@ public partial class CameraProfileRowViewModel : ObservableObject
     [ObservableProperty]
     private string? _errorText;
 
+    /// <summary>Live capture resolution read from the frames, e.g. "1280×720" (null before any frame).</summary>
+    [ObservableProperty]
+    private string? _resolution;
+
+    /// <summary>Measured incoming frame rate, e.g. "30 fps" (null before it's known).</summary>
+    [ObservableProperty]
+    private string? _frameRate;
+
     private long _lastPreviewTicks;
+    private int _fpsFrames;
+    private long _fpsWindowStart;
 
     /// <summary>Show a capture error in the preview tile (marshals to the UI thread).</summary>
     public void SetError(string message) =>
@@ -70,6 +80,22 @@ public partial class CameraProfileRowViewModel : ObservableObject
     public void SubmitJpeg(byte[] jpeg)
     {
         var now = Environment.TickCount64;
+
+        // Count every incoming frame (not just the decoded ones) for the true capture rate, averaged
+        // over a ~1s window.
+        if (_fpsWindowStart == 0)
+            _fpsWindowStart = now;
+        _fpsFrames++;
+        var windowMs = now - _fpsWindowStart;
+        if (windowMs >= 1000)
+        {
+            var fps = _fpsFrames * 1000.0 / windowMs;
+            _fpsFrames = 0;
+            _fpsWindowStart = now;
+            Dispatcher.UIThread.Post(() => FrameRate = $"{fps:0} fps");
+        }
+
+        // Decode for preview at a lighter cadence (~15 fps) to keep the UI cheap.
         if (now - _lastPreviewTicks < 66)
             return;
         _lastPreviewTicks = now;
@@ -90,6 +116,7 @@ public partial class CameraProfileRowViewModel : ObservableObject
             var old = Preview;
             Preview = bitmap;
             old?.Dispose();
+            Resolution = $"{bitmap.PixelSize.Width}×{bitmap.PixelSize.Height}";
             ErrorText = null; // a frame arrived — clear any prior error
         });
     }

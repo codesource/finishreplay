@@ -64,11 +64,19 @@
                                     <Image Source="{Binding Preview}" Stretch="Uniform" />
 
                                     <Border VerticalAlignment="Bottom" Background="#990B1220" Padding="8,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock Text="{Binding DisplayName}" Foreground="#E5E7EB" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding SourceType}" Foreground="#9CA3AF" FontSize="12"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{Binding DisplayName}" Foreground="#E5E7EB" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding SourceType}" Foreground="#9CA3AF" FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Resolution}" Foreground="#9CA3AF" FontSize="12"
+                                                           IsVisible="{Binding Resolution, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                <TextBlock Text="{Binding FrameRate}" Foreground="#9CA3AF" FontSize="12"
+                                                           IsVisible="{Binding FrameRate, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                            </StackPanel>
+                                        </Grid>
                                     </Border>
 
                                     <TextBlock Text="waiting for frames…" Foreground="#6B7280" FontSize="13"
