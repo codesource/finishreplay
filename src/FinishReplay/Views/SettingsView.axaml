@@ -116,7 +116,7 @@
                         </Border>
 
                         <!-- header row -->
-                        <Grid ColumnDefinitions="84,34,*,110,72,34,48,34" Margin="4,6,4,0">
+                        <Grid ColumnDefinitions="84,34,*,110,72,Auto,Auto,Auto" Margin="4,6,4,0">
                             <TextBlock Grid.Column="0" Text="Status" FontSize="12" Foreground="#6B7280" />
                             <TextBlock Grid.Column="1" Text="On" FontSize="12" Foreground="#6B7280" />
                             <TextBlock Grid.Column="2" Text="Name" FontSize="12" Foreground="#6B7280" />
@@ -129,7 +129,7 @@
                         <ItemsControl ItemsSource="{Binding Cameras}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:CameraSettingRowViewModel">
-                                    <Grid ColumnDefinitions="84,34,*,110,72,34,48,34" Margin="4,6">
+                                    <Grid ColumnDefinitions="84,34,*,110,72,Auto,Auto,Auto" Margin="4,6">
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
                                             <Ellipse Width="9" Height="9" Fill="{Binding StatusBrush}" />
                                             <TextBlock Text="{Binding StatusText}" FontSize="12" />
@@ -141,12 +141,12 @@
                                                    Foreground="#6B7280" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,0,6,0" />
                                         <TextBlock Grid.Column="4" Text="{Binding Suffix}" VerticalAlignment="Center"
                                                    Foreground="#6B7280" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                        <Button Grid.Column="5" Content="⚙" Margin="0,0,6,0" ToolTip.Tip="Configure"
+                                        <Button Grid.Column="5" Content="⚙" Margin="0,0,6,0" Padding="10,5" ToolTip.Tip="Configure"
                                                 Click="OnConfigureCameraClick" />
-                                        <Button Grid.Column="6" Content="Test" Margin="0,0,6,0"
+                                        <Button Grid.Column="6" Content="Test" Margin="0,0,6,0" Padding="12,5" ToolTip.Tip="Test connection"
                                                 Command="{Binding $parent[ItemsControl].((vm:CameraSettingsViewModel)DataContext).TestCameraCommand}"
                                                 CommandParameter="{Binding}" />
-                                        <Button Grid.Column="7" Content="✕"
+                                        <Button Grid.Column="7" Content="✕" Padding="10,5" ToolTip.Tip="Remove"
                                                 Command="{Binding $parent[ItemsControl].((vm:CameraSettingsViewModel)DataContext).RemoveCameraCommand}"
                                                 CommandParameter="{Binding}" />
                                     </Grid>
