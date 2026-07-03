@@ -131,16 +131,36 @@ internal static class Program
         MediaStream inStream = input.FindBestStreamOrNull(AVMediaType.Video)
             ?? throw new InvalidOperationException("No video stream in the source.");
 
-        using var decoder = new CodecContext(Codec.FindDecoderById(inStream.Codecpar!.CodecId));
+        // Fast path: when the source already delivers Motion-JPEG (most USB webcams at HD, many IP
+        // cameras), forward the original JPEG frames byte-for-byte. Decoding to YUV and re-encoding to
+        // MJPEG would throw away quality twice (chroma subsampling + a second lossy pass) for no gain —
+        // the app's preview/recording pipeline consumes JPEG frames directly.
+        if (inStream.Codecpar!.CodecId == AVCodecID.Mjpeg)
+        {
+            Write(TypeReady, ReadOnlySpan<byte>.Empty);
+            foreach (Packet pkt in input.ReadPackets(inStream.Index))
+            {
+                Write(TypeFrame, pkt.Data.AsSpan());
+                pkt.Unref();
+            }
+            return;
+        }
+
+        using var decoder = new CodecContext(Codec.FindDecoderById(inStream.Codecpar.CodecId));
         decoder.FillParameters(inStream.Codecpar);
         decoder.Open();
 
+        // Transcode path (H.264 RTSP, raw-YUV webcams): decode → mjpeg. Pin a high MJPEG quality
+        // (qscale ~3 of 1..31, 1 = best) so the preview/recording isn't degraded by the encoder's
+        // mediocre default quantization.
         using var encoder = new CodecContext(Codec.FindEncoderById(AVCodecID.Mjpeg))
         {
             Width = decoder.Width,
             Height = decoder.Height,
             PixelFormat = AVPixelFormat.Yuvj420p,
             TimeBase = new AVRational(1, o.Fps > 0 ? o.Fps : 30),
+            Flags = AV_CODEC_FLAG.Qscale,
+            GlobalQuality = ffmpeg.FF_QP2LAMBDA * 3,
         };
         encoder.Open();
 
