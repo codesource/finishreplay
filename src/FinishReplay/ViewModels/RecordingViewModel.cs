@@ -136,7 +136,36 @@ public partial class RecordingViewModel : ViewModelBase
     private List<CameraProfileRowViewModel> SelectedCameras =>
         Cameras.Where(c => c.IsSelected).ToList();
 
-    private void LoadFromSettings()
+    private bool _isReloading;
+    private bool _reloadRequested;
+
+    // Fires on construction and whenever settings are saved. Serialized so overlapping saves can't run
+    // two rebuilds at once — the second is coalesced into one follow-up pass after the first completes.
+    private async void LoadFromSettings()
+    {
+        if (_isReloading)
+        {
+            _reloadRequested = true;
+            return;
+        }
+
+        _isReloading = true;
+        try
+        {
+            do
+            {
+                _reloadRequested = false;
+                await ReloadAsync().ConfigureAwait(true);
+            }
+            while (_reloadRequested);
+        }
+        finally
+        {
+            _isReloading = false;
+        }
+    }
+
+    private async Task ReloadAsync()
     {
         var s = _settings.Current;
         PreRecordSeconds = s.PreRecordSeconds;
@@ -145,10 +174,16 @@ public partial class RecordingViewModel : ViewModelBase
         Discipline = s.Discipline;
         SeriesNumber = s.SeriesNumber < 1 ? 1 : s.SeriesNumber;
 
-        // Tear down previous live controllers before rebuilding.
-        foreach (var cam in _live.Values)
-            _ = cam.DisposeAsync();
+        // Tear down previous live controllers and WAIT for each to release its device before reopening.
+        // A USB webcam is held exclusively by its worker process; starting the new capture before the
+        // old worker has exited makes the device open fail "in use".
+        var previous = _live.Values.ToList();
         _live.Clear();
+        foreach (var cam in previous)
+        {
+            try { await cam.DisposeAsync().ConfigureAwait(true); }
+            catch { /* ignore teardown errors */ }
+        }
 
         RebuildTimingProvider(s);
 

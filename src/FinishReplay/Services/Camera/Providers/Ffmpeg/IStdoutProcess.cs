@@ -65,7 +65,13 @@ public sealed class FfmpegProcess : IStdoutProcess
         try
         {
             if (!_process.HasExited)
+            {
                 _process.Kill(entireProcessTree: true);
+                // Kill only *requests* termination — wait for the OS to actually tear the process
+                // down so it releases any exclusive device handle (e.g. a USB webcam). Without this
+                // a freshly reopened capture races the dying worker and fails "device in use".
+                _process.WaitForExit(3000);
+            }
         }
         catch
         {
