@@ -1,8 +1,10 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FinishReplay.Models;
 using FinishReplay.Services.Camera;
 using FinishReplay.Services.Camera.Providers;
+using FinishReplay.Services.Camera.Providers.Usb;
 
 namespace FinishReplay.ViewModels;
 
@@ -22,12 +24,19 @@ public partial class CameraConfigViewModel : ObservableObject
 
     private readonly CameraProfile _profile;
 
+    // Capture modes the device actually advertises (empty when unknown/unsupported → generic fallback).
+    private readonly IReadOnlyList<UsbVideoMode> _modes;
+    private readonly bool _hasModes;
+
     public CameraConfigViewModel(CameraProfile profile)
     {
         _profile = profile;
         IsUsb = profile.SourceType == UsbCameraProvider.Type;
         _name = profile.DisplayName;
         _suffix = profile.Suffix;
+
+        _modes = IsUsb ? UsbCameraCapabilities.Query(profile.Id) : Array.Empty<UsbVideoMode>();
+        _hasModes = _modes.Count > 0;
 
         if (IsUsb)
             LoadUsb();
@@ -48,13 +57,21 @@ public partial class CameraConfigViewModel : ObservableObject
     public bool CanApply => !string.IsNullOrWhiteSpace(Name) && !string.IsNullOrWhiteSpace(Suffix);
 
     // ---- USB ----
-    public IReadOnlyList<string> Formats { get; } = new[] { Auto, "mjpeg", "yuyv422", "rgb24", "nv12" };
-    public IReadOnlyList<string> Resolutions { get; } = new[] { Auto, "640×480", "800×600", "1280×720", "1920×1080" };
-    public IReadOnlyList<string> FrameRates { get; } = new[] { Auto, "15", "25", "30", "50", "60" };
+    // Populated from the device's advertised modes when available, otherwise a generic set. The
+    // Resolutions/FrameRates lists are re-filtered as Format/Resolution change so only combinations the
+    // camera actually supports are offered ("available couples").
+    public ObservableCollection<string> Formats { get; } = new();
+    public ObservableCollection<string> Resolutions { get; } = new();
+    public ObservableCollection<string> FrameRates { get; } = new();
 
     [ObservableProperty] private string _format = Auto;
     [ObservableProperty] private string _resolution = Auto;
     [ObservableProperty] private string _frameRate = Auto;
+
+    // Generic fallback options when the device's modes can't be read (non-Windows, driver quirk).
+    private static readonly string[] FallbackFormats = { Auto, "mjpeg", "yuyv422", "bgr24", "nv12" };
+    private static readonly string[] FallbackResolutions = { Auto, "640×480", "800×600", "1280×720", "1920×1080" };
+    private static readonly string[] FallbackFrameRates = { Auto, "60", "50", "30", "25", "15" };
 
     // ---- Network ----
     public IReadOnlyList<string> NetworkFormats { get; } =
@@ -111,10 +128,94 @@ public partial class CameraConfigViewModel : ObservableObject
 
     private void LoadUsb()
     {
-        Format = string.IsNullOrWhiteSpace(_profile.PixelFormat) ? Auto : _profile.PixelFormat!;
-        Resolution = _profile is { Width: > 0, Height: > 0 } ? $"{_profile.Width}×{_profile.Height}" : Auto;
-        FrameRate = _profile.FrameRate is > 0 ? ((int)_profile.FrameRate).ToString() : Auto;
+        // Formats first; setting Format rebuilds Resolutions, which rebuilds FrameRates.
+        RebuildFormats();
+
+        var wantFormat = string.IsNullOrWhiteSpace(_profile.PixelFormat) ? Auto : _profile.PixelFormat!;
+        Format = Formats.Contains(wantFormat) ? wantFormat : Auto;
+
+        var wantRes = _profile is { Width: > 0, Height: > 0 } ? $"{_profile.Width}×{_profile.Height}" : Auto;
+        Resolution = Resolutions.Contains(wantRes) ? wantRes : Auto;
+
+        var wantFps = _profile.FrameRate is > 0 ? FormatFps(_profile.FrameRate.Value) : Auto;
+        FrameRate = FrameRates.Contains(wantFps) ? wantFps : Auto;
     }
+
+    // Re-filter the dependent lists whenever a higher-level choice changes.
+    partial void OnFormatChanged(string value) => RebuildResolutions();
+    partial void OnResolutionChanged(string value) => RebuildFrameRates();
+
+    private void RebuildFormats()
+    {
+        if (!_hasModes)
+        {
+            Replace(Formats, FallbackFormats);
+            RebuildResolutions();
+            return;
+        }
+
+        var formats = _modes.Select(m => m.Format).Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase);
+        Replace(Formats, new[] { Auto }.Concat(formats));
+        RebuildResolutions();
+    }
+
+    private void RebuildResolutions()
+    {
+        if (!_hasModes)
+        {
+            Replace(Resolutions, FallbackResolutions);
+            RebuildFrameRates();
+            return;
+        }
+
+        var sizes = _modes
+            .Where(m => Format == Auto || m.Format.Equals(Format, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(m => m.Width * m.Height)
+            .Select(m => m.Resolution)
+            .Distinct();
+        Replace(Resolutions, new[] { Auto }.Concat(sizes));
+
+        if (!Resolutions.Contains(Resolution))
+            Resolution = Auto; // triggers RebuildFrameRates
+        else
+            RebuildFrameRates();
+    }
+
+    private void RebuildFrameRates()
+    {
+        if (!_hasModes)
+        {
+            Replace(FrameRates, FallbackFrameRates);
+            return;
+        }
+
+        var rates = _modes
+            .Where(m => Format == Auto || m.Format.Equals(Format, StringComparison.OrdinalIgnoreCase))
+            .Where(m => Resolution == Auto || m.Resolution == Resolution)
+            .SelectMany(m => m.FrameRates)
+            .Distinct()
+            .OrderByDescending(r => r)
+            .Select(FormatFps);
+        Replace(FrameRates, new[] { Auto }.Concat(rates));
+
+        if (!FrameRates.Contains(FrameRate))
+            FrameRate = Auto;
+    }
+
+    private static void Replace(ObservableCollection<string> target, IEnumerable<string> items)
+    {
+        var list = items.ToList();
+        if (target.Count == list.Count && target.SequenceEqual(list))
+            return; // unchanged — avoid clearing (which would reset the ComboBox selection)
+
+        target.Clear();
+        foreach (var item in list)
+            target.Add(item);
+    }
+
+    private static string FormatFps(double fps) =>
+        Math.Abs(fps - Math.Round(fps)) < 0.05 ? ((int)Math.Round(fps)).ToString() : fps.ToString("0.##");
 
     private void LoadNetwork()
     {
