@@ -66,8 +66,6 @@ public sealed class UsbCameraProvider : ICameraProvider
     public Task<ICameraStream> OpenAsync(CameraDevice device, CameraSettings settings, CancellationToken cancellationToken = default)
     {
         var platform = UsbPlatformInfo.Current;
-        var fps = (int)Math.Round(settings.FrameRate ?? 30);
-
         var worker = MediaWorkerLocator.Resolve();
 
         // The bundled, crash-isolated worker (in-process libav) is the primary path — no external
@@ -81,7 +79,14 @@ public sealed class UsbCameraProvider : ICameraProvider
                 UsbPlatform.Linux => ("v4l2", device.Id),
                 _ => throw new PlatformNotSupportedException("USB capture is not supported on this platform."),
             };
-            var workerArgs = new List<string> { "--url", url, "--format", fmt, "--fps", fps.ToString() };
+            var workerArgs = new List<string> { "--url", url, "--format", fmt };
+            // Only constrain the device frame rate when the user configured one — "Auto" must not pin
+            // it to 30, which would over-constrain the size/rate/format combination the device supports.
+            if (settings.FrameRate is > 0)
+            {
+                workerArgs.Add("--fps");
+                workerArgs.Add(((int)Math.Round(settings.FrameRate.Value)).ToString());
+            }
             if (settings is { Width: > 0, Height: > 0 })
             {
                 workerArgs.Add("--video-size");
@@ -102,6 +107,7 @@ public sealed class UsbCameraProvider : ICameraProvider
 
         // AVFoundation opens by index; ":none" selects the video device with no audio.
         var deviceId = platform == UsbPlatform.MacOS ? $"{device.Id}:none" : device.Id;
+        var fps = (int)Math.Round(settings.FrameRate ?? 30);
         var args = FfmpegArguments.ForUsbToMjpeg(platform, deviceId, fps, width: settings.Width, height: settings.Height, pixelFormat: settings.PixelFormat);
 
         ICameraStream stream = new FfmpegMjpegProcessStream(device, _ => new FfmpegProcess(exe, args));

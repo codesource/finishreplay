@@ -55,53 +55,68 @@ internal static class Program
         ffmpeg.avdevice_register_all();
 
         InputFormat? inputFormat = o.Format is null ? null : InputFormat.FindByShortName(o.Format);
+        bool isDevice = inputFormat is not null;
+        bool isDshow = string.Equals(o.Format, "dshow", StringComparison.OrdinalIgnoreCase);
 
-        // Build the option set for a device open. When `constrain` is false we drop the options that
-        // pin the hardware to a specific capture mode (video_size / framerate / pixel_format). DirectShow
-        // (and, to a lesser extent, v4l2/avfoundation) rejects an unsupported size/rate/format *combination*
-        // with EIO (-5) instead of negotiating, so we first try the requested mode, then fall back to the
-        // device's own default mode so preview/record still works. Transport-level options (rtsp_transport)
-        // are always kept — they don't constrain a device.
-        MediaDictionary? BuildOptions(bool constrain)
+        // Build a device-open option set. `size`/`rate` toggle the constraints that pin the hardware to a
+        // specific capture mode; `pixOverride` forces a pixel format / codec (null → use the requested one).
+        // Transport-level options (rtsp_transport) are always kept — they don't constrain a device.
+        MediaDictionary? BuildOptions(bool size, bool rate, string? pixOverride)
         {
             MediaDictionary? options = null;
             void SetOption(string key, string value) => (options ??= new MediaDictionary())[key] = value;
 
             if (o.RtspTcp)
                 SetOption("rtsp_transport", "tcp");
-            if (constrain)
+            if (rate && o.Fps > 0)
+                SetOption("framerate", o.Fps.ToString());
+            if (size && !string.IsNullOrWhiteSpace(o.VideoSize))
+                SetOption("video_size", o.VideoSize);
+
+            var pix = pixOverride ?? o.PixelFormat;
+            if (!string.IsNullOrWhiteSpace(pix))
             {
-                if (o.Fps > 0)
-                    SetOption("framerate", o.Fps.ToString());
-                if (!string.IsNullOrWhiteSpace(o.VideoSize))
-                    SetOption("video_size", o.VideoSize);
-                if (!string.IsNullOrWhiteSpace(o.PixelFormat))
+                if (pix.Equals("mjpeg", StringComparison.OrdinalIgnoreCase))
+                    SetOption("vcodec", "mjpeg");           // dshow
+                else
                 {
-                    if (o.PixelFormat.Equals("mjpeg", StringComparison.OrdinalIgnoreCase))
-                        SetOption("vcodec", "mjpeg");           // dshow
-                    else
-                    {
-                        SetOption("pixel_format", o.PixelFormat); // dshow / avfoundation
-                        SetOption("input_format", o.PixelFormat); // v4l2
-                    }
+                    SetOption("pixel_format", pix);         // dshow / avfoundation
+                    SetOption("input_format", pix);         // v4l2
                 }
             }
             return options;
         }
 
-        bool isDevice = inputFormat is not null;
-        bool hasConstraints = o.Fps > 0 || !string.IsNullOrWhiteSpace(o.VideoSize) || !string.IsNullOrWhiteSpace(o.PixelFormat);
+        // Ordered open attempts. Honor the configured mode first. DirectShow rejects an unsupported
+        // size/rate/format *combination* with EIO (-5) instead of negotiating; HD webcams typically
+        // expose large frame sizes only through MJPEG, so when a size is requested with format left on
+        // Auto we retry forcing mjpeg to keep the resolution. Only as a last resort do we drop the
+        // constraints and let the device pick its own default mode, so preview/record still works.
+        var attempts = new List<Func<MediaDictionary?>> { () => BuildOptions(size: true, rate: true, pixOverride: null) };
+        if (isDevice)
+        {
+            if (isDshow && !string.IsNullOrWhiteSpace(o.VideoSize) && string.IsNullOrWhiteSpace(o.PixelFormat))
+                attempts.Add(() => BuildOptions(size: true, rate: true, pixOverride: "mjpeg"));
+            attempts.Add(() => BuildOptions(size: false, rate: false, pixOverride: null));
+        }
 
-        FormatContext input;
-        try
+        FormatContext? input = null;
+        Exception? lastError = null;
+        foreach (var buildOptions in attempts)
         {
-            input = FormatContext.OpenInputUrl(o.Url, inputFormat, BuildOptions(constrain: true));
+            try
+            {
+                input = FormatContext.OpenInputUrl(o.Url, inputFormat, buildOptions());
+                break;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+            }
         }
-        catch when (isDevice && hasConstraints)
-        {
-            // Requested capture mode not supported by this device — retry with its default mode.
-            input = FormatContext.OpenInputUrl(o.Url, inputFormat, BuildOptions(constrain: false));
-        }
+
+        if (input is null)
+            throw lastError ?? new InvalidOperationException($"Could not open '{o.Url}'.");
 
         using (input)
         {
@@ -125,7 +140,7 @@ internal static class Program
             Width = decoder.Width,
             Height = decoder.Height,
             PixelFormat = AVPixelFormat.Yuvj420p,
-            TimeBase = new AVRational(1, o.Fps),
+            TimeBase = new AVRational(1, o.Fps > 0 ? o.Fps : 30),
         };
         encoder.Open();
 
