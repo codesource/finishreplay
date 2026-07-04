@@ -81,8 +81,9 @@
             <!-- Transport + timeline -->
             <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" Spacing="10">
 
-                <!-- Timeline: progress fill, marker ticks, position indicator -->
-                <Grid x:Name="Timeline" Height="44">
+                <!-- Timeline: progress fill, marker ticks, position indicator. Click/drag to seek. -->
+                <Grid x:Name="Timeline" Height="44" Background="Transparent" Cursor="Hand"
+                      PointerPressed="OnTimelinePressed" PointerMoved="OnTimelineMoved">
                     <Border Background="#E5E7EB" CornerRadius="4" />
 
                     <Rectangle HorizontalAlignment="Left" Fill="#BFDBFE" RadiusX="4" RadiusY="4">

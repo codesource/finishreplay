@@ -203,6 +203,14 @@ public partial class ReplayViewModel : ViewModelBase
         IsPlaying = false;
     }
 
+    /// <summary>Seek to a 0..1 position along the timeline (used by clicking/dragging the scrubber).</summary>
+    public void SeekToFraction(double fraction)
+    {
+        if (!HasSession || Duration <= TimeSpan.Zero)
+            return;
+        Seek(TimeSpan.FromSeconds(Math.Clamp(fraction, 0, 1) * Duration.TotalSeconds));
+    }
+
     private void Seek(TimeSpan target)
     {
         var clamped = target < TimeSpan.Zero ? TimeSpan.Zero : target > Duration ? Duration : target;
