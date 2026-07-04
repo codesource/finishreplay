@@ -35,10 +35,21 @@ public static class CameraReachability
             return false;
         try
         {
-            using var client = new TcpClient();
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(timeout);
-            await client.ConnectAsync(host, port, cts.Token).ConfigureAwait(false);
+
+            // .local (mDNS) names don't resolve via the OS resolver on Windows — resolve them ourselves.
+            var target = host;
+            if (MdnsResolver.IsMdnsHost(host))
+            {
+                var ip = await MdnsResolver.ResolveAsync(host, timeout, cts.Token).ConfigureAwait(false);
+                if (ip is null)
+                    return false;
+                target = ip.ToString();
+            }
+
+            using var client = new TcpClient();
+            await client.ConnectAsync(target, port, cts.Token).ConfigureAwait(false);
             return client.Connected;
         }
         catch

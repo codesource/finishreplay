@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using FinishReplay.Models;
 using FinishReplay.Services.Calibration;
+using FinishReplay.Services.Camera;
 
 namespace FinishReplay.Services.Camera.Providers.Mjpeg;
 
@@ -29,8 +30,12 @@ public sealed class MjpegCameraStream : ICameraStream
     public async IAsyncEnumerable<VideoFrame> ReadFramesAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        // Resolve a .local (mDNS) host to its IP — HttpClient's resolver can't do mDNS on Windows.
+        var url = await MdnsResolver.ResolveUrlAsync(Device.SourceUrl, TimeSpan.FromSeconds(2), cancellationToken)
+            .ConfigureAwait(false);
+
         using var response = await _http
-            .GetAsync(Device.SourceUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 

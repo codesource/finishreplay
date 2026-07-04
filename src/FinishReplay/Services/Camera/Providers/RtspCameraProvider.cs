@@ -37,9 +37,13 @@ public sealed class RtspCameraProvider : ICameraProvider
     public static CameraDevice CreateDevice(string url, string? displayName = null) =>
         new(url, displayName ?? $"RTSP {url}") { ProviderName = Type, SourceType = Type, SourceUrl = url };
 
-    public Task<ICameraStream> OpenAsync(CameraDevice device, CameraSettings settings, CancellationToken cancellationToken = default)
+    public async Task<ICameraStream> OpenAsync(CameraDevice device, CameraSettings settings, CancellationToken cancellationToken = default)
     {
         var fps = (int)Math.Round(settings.FrameRate ?? 30);
+
+        // Resolve a .local (mDNS) host to its IP — libav's resolver can't do mDNS on Windows.
+        var url = await MdnsResolver.ResolveUrlAsync(device.SourceUrl, TimeSpan.FromSeconds(2), cancellationToken)
+            .ConfigureAwait(false);
 
         var worker = MediaWorkerLocator.Resolve();
 
@@ -47,17 +51,15 @@ public sealed class RtspCameraProvider : ICameraProvider
         // ffmpeg needed. Only fall back to an external ffmpeg process if the worker isn't bundled.
         if (worker is not null)
         {
-            var workerArgs = new[] { "--url", device.SourceUrl, "--rtsp-tcp", "--fps", fps.ToString() };
-            ICameraStream isolated = new WorkerCameraStream(device, _ => new FfmpegProcess(worker, workerArgs));
-            return Task.FromResult(isolated);
+            var workerArgs = new[] { "--url", url, "--rtsp-tcp", "--fps", fps.ToString() };
+            return new WorkerCameraStream(device, _ => new FfmpegProcess(worker, workerArgs));
         }
 
         var exe = FfmpegLocator.Resolve(_ffmpegPath())
             ?? throw new InvalidOperationException(
                 "The embedded media worker isn't available and no external FFmpeg was found.");
 
-        var args = FfmpegArguments.ForRtspToMjpeg(device.SourceUrl, fps);
-        ICameraStream stream = new FfmpegMjpegProcessStream(device, _ => new FfmpegProcess(exe, args));
-        return Task.FromResult(stream);
+        var args = FfmpegArguments.ForRtspToMjpeg(url, fps);
+        return new FfmpegMjpegProcessStream(device, _ => new FfmpegProcess(exe, args));
     }
 }
