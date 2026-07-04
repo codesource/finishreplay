@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -43,9 +44,22 @@ public partial class ReplayViewModel : ViewModelBase
 
     public ObservableCollection<SessionInfo> RecentSessions { get; } = new();
     public ObservableCollection<ReplayCameraViewModel> Cameras { get; } = new();
+
+    /// <summary>The selected cameras only — these fill the replay grid (like the recording tab).</summary>
+    public ObservableCollection<ReplayCameraViewModel> VisibleCameras { get; } = new();
+
     public ObservableCollection<ReplayMarkerViewModel> Markers { get; } = new();
 
+    // Wall-clock time of the first frame in the file (record moment minus the pre-roll), used for the
+    // replay timestamp watermark.
+    private DateTimeOffset _clipStart;
+
     [ObservableProperty] private SessionInfo? _selectedSession;
+
+    /// <summary>Overlay a date+time stamp on the replayed frames. On by default; user can toggle it.</summary>
+    [ObservableProperty] private bool _showWatermark = true;
+
+    [ObservableProperty] private string _watermarkText = "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PositionText))]
@@ -86,7 +100,10 @@ public partial class ReplayViewModel : ViewModelBase
 
         var metadata = await _sessionManager.LoadAsync(session.MetadataFilePath);
 
+        foreach (var old in Cameras)
+            old.PropertyChanged -= OnCameraPropertyChanged;
         Cameras.Clear();
+        VisibleCameras.Clear();
         Markers.Clear();
         _timelineEngine.Clear();
 
@@ -95,6 +112,10 @@ public partial class ReplayViewModel : ViewModelBase
             HasSession = false;
             return;
         }
+
+        // First frame of the clip is captured PreRecordSeconds before the record moment (transcode
+        // pre-roll); anchor the watermark clock there.
+        _clipStart = metadata.CreatedAt - TimeSpan.FromSeconds(metadata.PreRecordSeconds);
 
         var sessionDir = Path.GetDirectoryName(session.MetadataFilePath) ?? "";
         _fps = metadata.Cameras.FirstOrDefault()?.Fps is > 0 and var f ? f : 30;
@@ -114,8 +135,10 @@ public partial class ReplayViewModel : ViewModelBase
             var frames = await ReadFramesAsync(Path.Combine(sessionDir, c.VideoFile));
             vm.LoadFrames(frames, c.Fps);
             maxFrames = Math.Max(maxFrames, frames.Count);
+            vm.PropertyChanged += OnCameraPropertyChanged;
             Cameras.Add(vm);
         }
+        RefreshVisibleCameras();
 
         Duration = maxFrames > 0 ? TimeSpan.FromSeconds(maxFrames / _fps) : TimeSpan.Zero;
         Position = TimeSpan.Zero;
@@ -123,8 +146,22 @@ public partial class ReplayViewModel : ViewModelBase
         foreach (var m in metadata.TimingMarkers)
             Markers.Add(new ReplayMarkerViewModel(m, FractionFor(m.VideoTime)));
 
-        UpdateCameraTimes();
         HasSession = true;
+        UpdateCameraTimes();
+    }
+
+    private void OnCameraPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ReplayCameraViewModel.IsSelected))
+            RefreshVisibleCameras();
+    }
+
+    private void RefreshVisibleCameras()
+    {
+        VisibleCameras.Clear();
+        foreach (var c in Cameras)
+            if (c.IsSelected)
+                VisibleCameras.Add(c);
     }
 
     [RelayCommand]
@@ -191,6 +228,8 @@ public partial class ReplayViewModel : ViewModelBase
     {
         foreach (var cam in Cameras)
             cam.UpdateTime(Position);
+
+        WatermarkText = HasSession ? (_clipStart + Position).ToString("yyyy-MM-dd HH:mm:ss.fff") : "";
     }
 
     /// <summary>

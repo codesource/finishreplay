@@ -145,23 +145,24 @@
                     <Button Content="⏮ Frame" Command="{Binding StepBackwardCommand}" />
                     <Button Content="Play / Pause" Command="{Binding PlayPauseCommand}" Padding="16,8" />
                     <Button Content="Frame ⏭" Command="{Binding StepForwardCommand}" />
+                    <CheckBox Content="Timestamp" IsChecked="{Binding ShowWatermark}" VerticalAlignment="Center"
+                              Margin="12,0,0,0" ToolTip.Tip="Overlay the recording date and time on the video" />
                 </StackPanel>
             </StackPanel>
 
-            <!-- Selected camera tiles (synchronized) -->
-            <Border Background="#0B1220" CornerRadius="6" Padding="8">
+            <!-- Selected camera tiles fill the space in a grid (synchronized) -->
+            <Border Background="#0B1220" CornerRadius="6" Padding="6">
                 <Grid>
-                    <ItemsControl ItemsSource="{Binding Cameras}">
+                    <ItemsControl ItemsSource="{Binding VisibleCameras}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel />
+                                <UniformGrid />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ReplayCameraViewModel">
-                                <Border Width="300" Height="210" Margin="6" CornerRadius="6" ClipToBounds="True"
-                                        Background="#111827" BorderBrush="#1F2937" BorderThickness="1"
-                                        IsVisible="{Binding IsSelected}">
+                                <Border Margin="4" CornerRadius="6" ClipToBounds="True"
+                                        Background="#111827" BorderBrush="#1F2937" BorderThickness="1">
                                     <DockPanel>
                                         <Border DockPanel.Dock="Bottom" Background="#0B1220" Padding="8,4">
                                             <Grid ColumnDefinitions="*,Auto">
@@ -175,6 +176,14 @@
                                             <TextBlock Text="no frames" Foreground="#374151" FontSize="18"
                                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                                        IsVisible="{Binding CurrentFrame, Converter={x:Static ObjectConverters.IsNull}}" />
+
+                                            <!-- Date+time watermark (togglable; on by default) -->
+                                            <Border x:CompileBindings="False" VerticalAlignment="Top" HorizontalAlignment="Left"
+                                                    Margin="8" Padding="6,2" CornerRadius="3" Background="#99000000"
+                                                    IsVisible="{Binding $parent[ItemsControl].DataContext.ShowWatermark}">
+                                                <TextBlock Text="{Binding $parent[ItemsControl].DataContext.WatermarkText}"
+                                                           Foreground="#F9FAFB" FontFamily="Consolas" FontSize="13" />
+                                            </Border>
                                         </Grid>
                                     </DockPanel>
                                 </Border>
