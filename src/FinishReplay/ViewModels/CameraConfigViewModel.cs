@@ -34,6 +34,7 @@ public partial class CameraConfigViewModel : ObservableObject
         IsUsb = profile.SourceType == UsbCameraProvider.Type;
         _name = profile.DisplayName;
         _suffix = profile.Suffix;
+        _latencyMs = profile.ManualOffsetMs ?? 0;
 
         _modes = IsUsb ? UsbCameraCapabilities.Query(profile.Id) : Array.Empty<UsbVideoMode>();
         _hasModes = _modes.Count > 0;
@@ -53,6 +54,12 @@ public partial class CameraConfigViewModel : ObservableObject
     // Name + suffix (shown for every camera type).
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(CanApply))] private string _name;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(CanApply))] private string _suffix;
+
+    /// <summary>
+    /// Manual latency compensation in ms — how much later this camera's video arrives than a fast
+    /// reference. Used to sync a slower (e.g. WiFi/RTSP) camera against a low-latency one during replay.
+    /// </summary>
+    [ObservableProperty] private double _latencyMs;
 
     public bool CanApply => !string.IsNullOrWhiteSpace(Name) && !string.IsNullOrWhiteSpace(Suffix);
 
@@ -102,6 +109,7 @@ public partial class CameraConfigViewModel : ObservableObject
     {
         _profile.DisplayName = Name.Trim();
         _profile.Suffix = Suffix.Trim();
+        _profile.ManualOffsetMs = LatencyMs == 0 ? null : LatencyMs;
 
         if (IsUsb)
         {

@@ -41,14 +41,20 @@
                     <ItemsControl ItemsSource="{Binding Cameras}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ReplayCameraViewModel">
-                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="8,4">
-                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" />
-                                    <StackPanel Grid.Column="1">
+                                <Grid ColumnDefinitions="Auto,*" Margin="8,4" RowDefinitions="Auto,Auto">
+                                    <CheckBox Grid.Row="0" Grid.Column="0" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" />
+                                    <StackPanel Grid.Row="0" Grid.Column="1">
                                         <TextBlock Text="{Binding Name}" />
                                         <TextBlock Text="{Binding SourceType}" Foreground="#6B7280" FontSize="11" />
                                     </StackPanel>
-                                    <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="#2563EB"
-                                               FontSize="12" Text="{Binding SyncOffsetMs, StringFormat='+{0:0.#} ms'}" />
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                                                Margin="0,4,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="Latency" Foreground="#6B7280" FontSize="11" VerticalAlignment="Center" />
+                                        <NumericUpDown Value="{Binding SyncOffsetMs}" Increment="10" FormatString="0"
+                                                       MinWidth="96" FontSize="12"
+                                                       ToolTip.Tip="Milliseconds this camera lags; increase to sync a slower (e.g. WiFi) camera" />
+                                        <TextBlock Text="ms" Foreground="#6B7280" FontSize="11" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

@@ -22,6 +22,7 @@ public partial class ReplayCameraViewModel : ObservableObject
     public ReplayCameraViewModel(SessionCamera camera)
     {
         Camera = camera;
+        _syncOffsetMs = camera.SyncOffsetMs;
     }
 
     public SessionCamera Camera { get; }
@@ -29,8 +30,14 @@ public partial class ReplayCameraViewModel : ObservableObject
     public string CameraId => Camera.CameraId;
     public string Name => Camera.Name;
     public string SourceType => Camera.SourceType;
-    public double SyncOffsetMs => Camera.SyncOffsetMs;
     public string VideoFile => Camera.VideoFile;
+
+    /// <summary>
+    /// Latency compensation for this camera, in ms. Positive means this camera's video arrives later
+    /// (higher latency), so it is advanced on the master timeline to line up with faster cameras. Seeded
+    /// from the session's calibrated offset and adjustable live to fine-tune alignment.
+    /// </summary>
+    [ObservableProperty] private double _syncOffsetMs;
 
     public int FrameCount => _frames.Count;
 
@@ -66,13 +73,16 @@ public partial class ReplayCameraViewModel : ObservableObject
         OnPropertyChanged(nameof(FrameCount));
     }
 
-    /// <summary>This camera's frame times on the master timeline (clip time + sync offset), in ms.</summary>
-    public IEnumerable<double> MasterFrameTimesMs => _frameTimesMs.Select(ms => ms + SyncOffsetMs);
+    /// <summary>
+    /// This camera's frame times on the master timeline, in ms. A higher-latency camera (positive
+    /// offset) is shifted <em>earlier</em> so its later-arriving frames line up with the real moment.
+    /// </summary>
+    public IEnumerable<double> MasterFrameTimesMs => _frameTimesMs.Select(ms => ms - SyncOffsetMs);
 
-    /// <summary>Render the frame for the given master position, shifted by this camera's offset.</summary>
+    /// <summary>Render the frame for the given master position, compensating this camera's latency.</summary>
     public void UpdateTime(TimeSpan master)
     {
-        var t = master - TimeSpan.FromMilliseconds(SyncOffsetMs);
+        var t = master + TimeSpan.FromMilliseconds(SyncOffsetMs);
         if (t < TimeSpan.Zero) t = TimeSpan.Zero;
         CameraTimeText = t.ToString(@"mm\:ss\.fff");
 

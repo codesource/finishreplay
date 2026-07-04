@@ -22,6 +22,17 @@
             <TextBox Grid.Column="3" Text="{Binding Suffix}" Watermark="required" />
         </Grid>
 
+        <!-- Latency compensation (all camera types) -->
+        <StackPanel Spacing="4">
+            <Grid ColumnDefinitions="130,*">
+                <TextBlock Grid.Column="0" Text="Latency (ms)" VerticalAlignment="Center" />
+                <NumericUpDown Grid.Column="1" HorizontalAlignment="Left" Width="150"
+                               Value="{Binding LatencyMs}" Increment="10" FormatString="0" />
+            </Grid>
+            <TextBlock TextWrapping="Wrap" Foreground="#6B7280" FontSize="12"
+                       Text="How much later this camera's video arrives than a fast one (WiFi/RTSP cameras lag). Used to sync it during replay; you can also fine-tune this live on the Replay screen." />
+        </StackPanel>
+
         <!-- USB: format / resolution / frame rate + driver properties -->
         <StackPanel Spacing="10" IsVisible="{Binding IsUsb}">
             <Grid ColumnDefinitions="130,*" RowDefinitions="Auto,Auto,Auto" >

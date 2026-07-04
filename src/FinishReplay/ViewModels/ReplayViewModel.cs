@@ -131,7 +131,6 @@ public partial class ReplayViewModel : ViewModelBase
             Source = "calibrated",
         }));
 
-        var maxEndMs = 0.0;
         foreach (var c in metadata.Cameras)
         {
             var vm = new ReplayCameraViewModel(c);
@@ -140,13 +139,11 @@ public partial class ReplayViewModel : ViewModelBase
             // Real per-frame timestamps when the sidecar exists; falls back to nominal fps otherwise.
             var frameTimes = FrameTimestampsFile.Read(clipPath);
             vm.LoadFrames(frames, c.Fps, frameTimes);
-            if (vm.MasterFrameTimesMs.Any())
-                maxEndMs = Math.Max(maxEndMs, vm.MasterFrameTimesMs.Last());
             vm.PropertyChanged += OnCameraPropertyChanged;
             Cameras.Add(vm);
         }
 
-        Duration = maxEndMs > 0 ? TimeSpan.FromMilliseconds(maxEndMs) : TimeSpan.Zero;
+        RecomputeDuration();
         Position = TimeSpan.Zero;
         RefreshVisibleCameras();
 
@@ -160,7 +157,26 @@ public partial class ReplayViewModel : ViewModelBase
     private void OnCameraPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ReplayCameraViewModel.IsSelected))
+        {
             RefreshVisibleCameras();
+        }
+        else if (e.PropertyName == nameof(ReplayCameraViewModel.SyncOffsetMs))
+        {
+            // Live latency nudge: frame boundaries and duration depend on the offset — rebuild and
+            // re-render the current position so the change is visible immediately.
+            RefreshVisibleCameras();
+            RecomputeDuration();
+            UpdateCameraTimes();
+        }
+    }
+
+    private void RecomputeDuration()
+    {
+        var maxMs = 0.0;
+        foreach (var c in Cameras)
+            if (c.MasterFrameTimesMs.Any())
+                maxMs = Math.Max(maxMs, c.MasterFrameTimesMs.Last());
+        Duration = maxMs > 0 ? TimeSpan.FromMilliseconds(maxMs) : TimeSpan.Zero;
     }
 
     private void RefreshVisibleCameras()
