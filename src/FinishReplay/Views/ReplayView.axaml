@@ -47,13 +47,17 @@
                                         <TextBlock Text="{Binding Name}" />
                                         <TextBlock Text="{Binding SourceType}" Foreground="#6B7280" FontSize="11" />
                                     </StackPanel>
-                                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="4"
                                                 Margin="0,4,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="Latency" Foreground="#6B7280" FontSize="11" VerticalAlignment="Center" />
-                                        <NumericUpDown Value="{Binding SyncOffsetMs}" Increment="10" FormatString="0"
-                                                       MinWidth="96" FontSize="12"
-                                                       ToolTip.Tip="Milliseconds this camera lags; increase to sync a slower (e.g. WiFi) camera" />
-                                        <TextBlock Text="ms" Foreground="#6B7280" FontSize="11" VerticalAlignment="Center" />
+                                        <TextBlock Text="Latency" Foreground="#6B7280" FontSize="11"
+                                                   VerticalAlignment="Center" Margin="0,0,2,0" />
+                                        <Button Content="＋" Command="{Binding IncreaseOffsetCommand}" Padding="8,2"
+                                                ToolTip.Tip="Increase latency by 10 ms (advance a slower camera)" />
+                                        <TextBlock Text="{Binding SyncOffsetMs, StringFormat='{}{0:0} ms'}"
+                                                   MinWidth="56" TextAlignment="Center" VerticalAlignment="Center"
+                                                   FontFamily="Consolas" FontSize="12" />
+                                        <Button Content="－" Command="{Binding DecreaseOffsetCommand}" Padding="8,2"
+                                                ToolTip.Tip="Decrease latency by 10 ms" />
                                     </StackPanel>
                                 </Grid>
                             </DataTemplate>

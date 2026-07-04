@@ -1,5 +1,6 @@
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using FinishReplay.Models;
 
 namespace FinishReplay.ViewModels;
@@ -38,6 +39,11 @@ public partial class ReplayCameraViewModel : ObservableObject
     /// from the session's calibrated offset and adjustable live to fine-tune alignment.
     /// </summary>
     [ObservableProperty] private double _syncOffsetMs;
+
+    private const double OffsetStepMs = 10;
+
+    [RelayCommand] private void IncreaseOffset() => SyncOffsetMs += OffsetStepMs;
+    [RelayCommand] private void DecreaseOffset() => SyncOffsetMs -= OffsetStepMs;
 
     public int FrameCount => _frames.Count;
 
