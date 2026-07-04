@@ -138,6 +138,7 @@ public partial class RecordingViewModel : ViewModelBase
 
     private bool _isReloading;
     private bool _reloadRequested;
+    private string? _cameraSignature;
 
     // Fires on construction and whenever settings are saved. Serialized so overlapping saves can't run
     // two rebuilds at once — the second is coalesced into one follow-up pass after the first completes.
@@ -174,6 +175,20 @@ public partial class RecordingViewModel : ViewModelBase
         Discipline = s.Discipline;
         SeriesNumber = s.SeriesNumber < 1 ? 1 : s.SeriesNumber;
 
+        RebuildTimingProvider(s);
+
+        // Only rebuild the live previews when the camera set/config actually changed. Otherwise (e.g. the
+        // series number auto-bumps after a recording, or the latency is nudged) keep the previews running
+        // instead of tearing the devices down and reopening them — which is the visible "refresh".
+        var signature = CameraSignature(s);
+        if (signature == _cameraSignature)
+        {
+            foreach (var live in _live.Values)
+                live.PreRecordSeconds = s.PreRecordSeconds;
+            return;
+        }
+        _cameraSignature = signature;
+
         // Tear down previous live controllers and WAIT for each to release its device before reopening.
         // A USB webcam is held exclusively by its worker process; starting the new capture before the
         // old worker has exited makes the device open fail "in use".
@@ -184,8 +199,6 @@ public partial class RecordingViewModel : ViewModelBase
             try { await cam.DisposeAsync().ConfigureAwait(true); }
             catch { /* ignore teardown errors */ }
         }
-
-        RebuildTimingProvider(s);
 
         Cameras.Clear();
         // Only enabled cameras take part in a recording session — unchecking "On" in Settings drops
@@ -269,6 +282,10 @@ public partial class RecordingViewModel : ViewModelBase
 
         ApplySyncOffsets(selected);
         _currentSession.Cameras = selected.Select(ToSessionCamera).ToList();
+
+        // Don't overwrite an existing recording with the same category/discipline/series — version it.
+        EnsureUniqueSession(s.StorageDirectory);
+
         Markers.Clear();
 
         // Automatic marker at the record moment so replay has a clear "start" tick.
@@ -453,6 +470,17 @@ public partial class RecordingViewModel : ViewModelBase
     private static bool HasLiveCapture(string sourceType) =>
         sourceType is MjpegCameraProvider.Type or RtspCameraProvider.Type or UsbCameraProvider.Type;
 
+    /// <summary>
+    /// Fingerprint of the enabled cameras' capture-relevant configuration. Used to decide whether a
+    /// settings change actually requires reopening the devices. Deliberately excludes latency/calibration
+    /// (replay-only) and the event fields (category/discipline/series), so those never restart previews.
+    /// </summary>
+    private static string CameraSignature(AppSettings s) =>
+        string.Join("\n", s.Cameras
+            .Where(c => c.Enabled)
+            .Select(c => string.Join("|", c.Id, c.SourceType, c.SourceUrl, c.DisplayName, c.Suffix,
+                                          c.Width, c.Height, c.FrameRate, c.PixelFormat)));
+
     private SessionCamera ToSessionCamera(CameraProfileRowViewModel row)
     {
         // Passthrough RTSP archives original H.264 to MP4; everything captured else records MJPEG AVI.
@@ -486,5 +514,47 @@ public partial class RecordingViewModel : ViewModelBase
         var s = _settings.Current;
         var ctx = new RecordingNameContext(DateTimeOffset.Now, s.Category, s.Discipline, s.SeriesNumber, cameraSuffix);
         return FilenameFormatter.Build(s.FilenameFormat, ctx);
+    }
+
+    /// <summary>
+    /// If the session id or any camera file would collide with an existing recording on disk, append a
+    /// version tag (<c>-v2</c>, <c>-v3</c>, …) to the session id and every camera file so nothing is
+    /// overwritten. Applied to the whole session together so the files stay grouped.
+    /// </summary>
+    private void EnsureUniqueSession(string dir)
+    {
+        if (_currentSession is null)
+            return;
+
+        var baseId = _currentSession.SessionId;
+        var baseFiles = _currentSession.Cameras.Select(c => c.VideoFile).ToList();
+
+        var version = 1;
+        while (VersionExists(dir, baseId, baseFiles, version))
+            version++;
+
+        if (version == 1)
+            return; // base names are free
+
+        var tag = $"-v{version}";
+        _currentSession.SessionId = baseId + tag;
+        for (var i = 0; i < _currentSession.Cameras.Count; i++)
+            _currentSession.Cameras[i].VideoFile = InsertBeforeExtension(baseFiles[i], tag);
+    }
+
+    private static bool VersionExists(string dir, string baseId, IReadOnlyList<string> baseFiles, int version)
+    {
+        var tag = version == 1 ? "" : $"-v{version}";
+        if (File.Exists(Path.Combine(dir, baseId + tag + ".timing.json")))
+            return true;
+        return baseFiles.Any(f => File.Exists(Path.Combine(dir, InsertBeforeExtension(f, tag))));
+    }
+
+    private static string InsertBeforeExtension(string fileName, string tag)
+    {
+        if (string.IsNullOrEmpty(tag))
+            return fileName;
+        var ext = Path.GetExtension(fileName);
+        return Path.GetFileNameWithoutExtension(fileName) + tag + ext;
     }
 }
