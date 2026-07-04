@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Sockets;
 
 namespace FinishReplay.Services.Camera;
@@ -35,19 +36,13 @@ public static class CameraReachability
             return false;
         try
         {
+            // Resolve to an IPv4 address first, on its own time budget, so a slow/flaky name lookup (or
+            // an IPv6 address that would be tried first) can't eat the whole timeout and cancel the
+            // connect — which is what made a working camera show "offline".
+            var target = await ResolveIPv4Async(host, timeout, ct).ConfigureAwait(false) ?? host;
+
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(timeout);
-
-            // For a .local (mDNS) host, resolve to an IP first; if that yields nothing, still fall back
-            // to the original name so the OS resolver gets its own chance (it can do mDNS on Windows).
-            var target = host;
-            if (MdnsResolver.IsMdnsHost(host))
-            {
-                var ip = await MdnsResolver.ResolveAsync(host, timeout, cts.Token).ConfigureAwait(false);
-                if (ip is not null)
-                    target = ip.ToString();
-            }
-
+            cts.CancelAfter(timeout); // fresh budget for the connect itself
             using var client = new TcpClient();
             await client.ConnectAsync(target, port, cts.Token).ConfigureAwait(false);
             return client.Connected;
@@ -55,6 +50,28 @@ public static class CameraReachability
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>Resolve a host to an IPv4 address (mDNS for <c>.local</c>, the OS resolver otherwise).</summary>
+    private static async Task<string?> ResolveIPv4Async(string host, TimeSpan timeout, CancellationToken ct)
+    {
+        if (IPAddress.TryParse(host, out var literal))
+            return literal.AddressFamily == AddressFamily.InterNetwork ? host : null;
+
+        try
+        {
+            if (MdnsResolver.IsMdnsHost(host))
+                return (await MdnsResolver.ResolveAsync(host, timeout, ct).ConfigureAwait(false))?.ToString();
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(timeout);
+            var addresses = await Dns.GetHostAddressesAsync(host, AddressFamily.InterNetwork, cts.Token).ConfigureAwait(false);
+            return addresses.FirstOrDefault()?.ToString();
+        }
+        catch
+        {
+            return null;
         }
     }
 

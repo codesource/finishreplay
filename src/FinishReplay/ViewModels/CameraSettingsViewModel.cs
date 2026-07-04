@@ -16,7 +16,7 @@ namespace FinishReplay.ViewModels;
 /// </summary>
 public partial class CameraSettingsViewModel : ObservableObject
 {
-    private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(3);
 
     private readonly ISettingsService _settings;
     private readonly ICameraManager _cameraManager;
