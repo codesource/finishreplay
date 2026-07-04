@@ -6,6 +6,16 @@ The application focuses on fast, reliable video capture and frame-accurate repla
 
 Whether you're timing an athletics race, cycling event, ski competition, or any other sport, Finish Replay automatically captures the action, preserves configurable pre-start and post-finish buffers, and displays official timing events directly on the replay timeline.
 
+## Download (Windows)
+
+Grab the latest build from the [**Releases**](https://github.com/codesource/finishreplay/releases/latest) page:
+
+1. Download `FinishReplay-<version>-win-x64.zip`.
+2. Extract it anywhere.
+3. Run `FinishReplay.exe`.
+
+It's a self-contained Windows x64 build — **no .NET install required**, and FFmpeg is bundled. The current builds are early **alpha** pre-releases; expect rough edges.
+
 ## Features
 
 * Cross-platform (Windows, macOS planned)
