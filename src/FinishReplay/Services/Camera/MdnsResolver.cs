@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 
@@ -55,12 +56,25 @@ public static class MdnsResolver
         if (Cache.TryGetValue(name, out var hit) && hit.ExpiresTicks > DateTime.UtcNow.Ticks)
             return hit.Ip;
 
+        var ip = await ResolveViaOsAsync(name, ct).ConfigureAwait(false)
+              ?? await SafeQueryAsync(name, timeout, ct).ConfigureAwait(false);
+
+        if (ip is not null)
+            Cache[name] = (ip, DateTime.UtcNow.Add(CacheTtl).Ticks);
+        return ip;
+    }
+
+    /// <summary>
+    /// The OS resolver first — Windows resolves <c>.local</c> via its DNS client, and Linux/macOS via
+    /// nss/avahi. This is what Chrome and the browser use, so it picks the same address and the same
+    /// interface; our own multicast query is only a fallback for when the OS can't do mDNS.
+    /// </summary>
+    private static async Task<IPAddress?> ResolveViaOsAsync(string name, CancellationToken ct)
+    {
         try
         {
-            var ip = await QueryAsync(name, timeout, ct).ConfigureAwait(false);
-            if (ip is not null)
-                Cache[name] = (ip, DateTime.UtcNow.Add(CacheTtl).Ticks);
-            return ip;
+            var addresses = await Dns.GetHostAddressesAsync(name, AddressFamily.InterNetwork, ct).ConfigureAwait(false);
+            return addresses.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
         }
         catch
         {
@@ -68,28 +82,36 @@ public static class MdnsResolver
         }
     }
 
+    private static async Task<IPAddress?> SafeQueryAsync(string name, TimeSpan timeout, CancellationToken ct)
+    {
+        try { return await QueryAsync(name, timeout, ct).ConfigureAwait(false); }
+        catch { return null; }
+    }
+
     private static async Task<IPAddress?> QueryAsync(string name, TimeSpan timeout, CancellationToken ct)
     {
         var query = BuildQuery(name);
+
+        // Bind an EPHEMERAL port (not 5353 — the Windows mDNS service owns that, and sharing it for
+        // receive is unreliable). We set the unicast-response (QU) bit in the query, so responders reply
+        // directly to this socket. We send the query out of every IPv4 interface so a machine with a VPN
+        // and several adapters still reaches the camera's subnet.
+        using var udp = new UdpClient(new IPEndPoint(IPAddress.Any, 0));
         var target = new IPEndPoint(MulticastAddress, MdnsPort);
-
-        using var udp = new UdpClient(AddressFamily.InterNetwork);
-        udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-
-        // Bind to the mDNS port when possible so we also catch multicast replies (responders that ignore
-        // the unicast-response hint); fall back to an ephemeral port and rely on the QU unicast reply.
-        try { udp.Client.Bind(new IPEndPoint(IPAddress.Any, MdnsPort)); }
-        catch { udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0)); }
-        try { udp.JoinMulticastGroup(MulticastAddress); } catch { /* ephemeral fallback */ }
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(timeout);
 
-        // UDP is lossy — send the query a few times.
-        for (var i = 0; i < 3; i++)
+        foreach (var localIp in MulticastInterfaces())
         {
-            try { await udp.SendAsync(query, query.Length, target).ConfigureAwait(false); }
-            catch { /* interface may not support multicast; keep listening anyway */ }
+            try
+            {
+                udp.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
+                    localIp.GetAddressBytes());
+                await udp.SendAsync(query, query.Length, target).ConfigureAwait(false); // UDP is lossy
+                await udp.SendAsync(query, query.Length, target).ConfigureAwait(false);
+            }
+            catch { /* interface can't multicast; try the next */ }
         }
 
         try
@@ -108,6 +130,31 @@ public static class MdnsResolver
         }
 
         return null;
+    }
+
+    /// <summary>Up, multicast-capable IPv4 interface addresses, so the query reaches every subnet.</summary>
+    private static IEnumerable<IPAddress> MulticastInterfaces()
+    {
+        NetworkInterface[] nics;
+        try { nics = NetworkInterface.GetAllNetworkInterfaces(); }
+        catch { yield break; }
+
+        foreach (var nic in nics)
+        {
+            if (nic.OperationalStatus != OperationalStatus.Up || !nic.SupportsMulticast)
+                continue;
+
+            IPInterfaceProperties props;
+            try { props = nic.GetIPProperties(); }
+            catch { continue; }
+
+            foreach (var addr in props.UnicastAddresses)
+            {
+                if (addr.Address.AddressFamily == AddressFamily.InterNetwork &&
+                    !IPAddress.IsLoopback(addr.Address))
+                    yield return addr.Address;
+            }
+        }
     }
 
     private static byte[] BuildQuery(string name)

@@ -38,14 +38,14 @@ public static class CameraReachability
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(timeout);
 
-            // .local (mDNS) names don't resolve via the OS resolver on Windows — resolve them ourselves.
+            // For a .local (mDNS) host, resolve to an IP first; if that yields nothing, still fall back
+            // to the original name so the OS resolver gets its own chance (it can do mDNS on Windows).
             var target = host;
             if (MdnsResolver.IsMdnsHost(host))
             {
                 var ip = await MdnsResolver.ResolveAsync(host, timeout, cts.Token).ConfigureAwait(false);
-                if (ip is null)
-                    return false;
-                target = ip.ToString();
+                if (ip is not null)
+                    target = ip.ToString();
             }
 
             using var client = new TcpClient();
