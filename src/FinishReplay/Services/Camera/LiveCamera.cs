@@ -33,6 +33,12 @@ public sealed class LiveCamera : IAsyncDisposable
     private double _postRecordSeconds;
     private int _recordedFrames;
 
+    // Per-frame capture timestamps for the clip currently being written (transcode only), so replay can
+    // place frames on the master timeline by real arrival time — capturing WiFi jitter / variable latency.
+    private string? _clipPath;
+    private List<double>? _clipFrameTimesMs;
+    private TimeSpan? _clipFirstFrameTime;
+
     public LiveCamera(CameraProviderRegistry registry, CameraProfile profile, Func<string>? ffmpegPath = null)
     {
         _registry = registry;
@@ -98,9 +104,13 @@ public sealed class LiveCamera : IAsyncDisposable
             _file = File.Create(filePath);
             _writer = new AviMjpegWriter(_file, fps);
             _recordedFrames = 0;
-            foreach (var jpeg in _buffer.Snapshot())
+            _clipPath = filePath;
+            _clipFrameTimesMs = new List<double>();
+            _clipFirstFrameTime = null;
+            foreach (var (time, jpeg) in _buffer.SnapshotTimed())
             {
                 _writer.AddFrame(jpeg);
+                RecordFrameTime(time);
                 _recordedFrames++;
             }
             _state = RecState.Recording;
@@ -158,6 +168,7 @@ public sealed class LiveCamera : IAsyncDisposable
                     if (_writer is not null && _state != RecState.Idle)
                     {
                         _writer.AddFrame(frame.Data);
+                        RecordFrameTime(frame.Timestamp);
                         _recordedFrames++;
                     }
                 }
@@ -195,7 +206,25 @@ public sealed class LiveCamera : IAsyncDisposable
         _writer = null;
         _file = null;
         _state = RecState.Idle;
+
+        // Persist the per-frame timestamps next to the clip for frame-accurate replay.
+        if (_clipPath is not null && _clipFrameTimesMs is { Count: > 0 })
+        {
+            try { FrameTimestampsFile.Write(_clipPath, _clipFrameTimesMs); }
+            catch { /* timing sidecar is best-effort */ }
+        }
+        _clipPath = null;
+        _clipFrameTimesMs = null;
+        _clipFirstFrameTime = null;
+
         return count;
+    }
+
+    /// <summary>Append a written frame's clip-relative time (ms from the first frame). Caller holds the gate.</summary>
+    private void RecordFrameTime(TimeSpan streamTime)
+    {
+        _clipFirstFrameTime ??= streamTime;
+        _clipFrameTimesMs?.Add((streamTime - _clipFirstFrameTime.Value).TotalMilliseconds);
     }
 
     public async ValueTask DisposeAsync()

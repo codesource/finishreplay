@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FinishReplay.Models;
 using FinishReplay.Services.Camera.Providers.Ffmpeg;
+using FinishReplay.Services.Recording;
 using FinishReplay.Services.Recording.Mjpeg;
 using FinishReplay.Services.Session;
 using FinishReplay.Services.Timeline;
@@ -25,8 +26,12 @@ public partial class ReplayViewModel : ViewModelBase
     private readonly Func<string> _ffmpegPath;
     private readonly DispatcherTimer _clock;
 
-    private double _fps = 30;
-    private TimeSpan _frameStep = TimeSpan.FromSeconds(1.0 / 30.0);
+    // Real-time step for continuous playback (the clock ticks at this rate).
+    private readonly TimeSpan _frameStep = TimeSpan.FromSeconds(1.0 / 30.0);
+
+    // Distinct frame times across the visible cameras, on the master timeline — the boundaries the
+    // Step buttons walk so replay advances frame by frame through whichever camera has the next frame.
+    private List<TimeSpan> _frameBoundaries = new();
 
     public ReplayViewModel(ISessionManager sessionManager, TimelineEngine timelineEngine, Func<string>? ffmpegPath = null)
     {
@@ -118,8 +123,6 @@ public partial class ReplayViewModel : ViewModelBase
         _clipStart = metadata.CreatedAt - TimeSpan.FromSeconds(metadata.PreRecordSeconds);
 
         var sessionDir = Path.GetDirectoryName(session.MetadataFilePath) ?? "";
-        _fps = metadata.Cameras.FirstOrDefault()?.Fps is > 0 and var f ? f : 30;
-        _frameStep = TimeSpan.FromSeconds(1.0 / _fps);
 
         _timelineEngine.SetCameraOffsets(metadata.Cameras.Select(c => new CameraSyncOffset
         {
@@ -128,20 +131,24 @@ public partial class ReplayViewModel : ViewModelBase
             Source = "calibrated",
         }));
 
-        var maxFrames = 0;
+        var maxEndMs = 0.0;
         foreach (var c in metadata.Cameras)
         {
             var vm = new ReplayCameraViewModel(c);
-            var frames = await ReadFramesAsync(Path.Combine(sessionDir, c.VideoFile));
-            vm.LoadFrames(frames, c.Fps);
-            maxFrames = Math.Max(maxFrames, frames.Count);
+            var clipPath = Path.Combine(sessionDir, c.VideoFile);
+            var frames = await ReadFramesAsync(clipPath);
+            // Real per-frame timestamps when the sidecar exists; falls back to nominal fps otherwise.
+            var frameTimes = FrameTimestampsFile.Read(clipPath);
+            vm.LoadFrames(frames, c.Fps, frameTimes);
+            if (vm.MasterFrameTimesMs.Any())
+                maxEndMs = Math.Max(maxEndMs, vm.MasterFrameTimesMs.Last());
             vm.PropertyChanged += OnCameraPropertyChanged;
             Cameras.Add(vm);
         }
-        RefreshVisibleCameras();
 
-        Duration = maxFrames > 0 ? TimeSpan.FromSeconds(maxFrames / _fps) : TimeSpan.Zero;
+        Duration = maxEndMs > 0 ? TimeSpan.FromMilliseconds(maxEndMs) : TimeSpan.Zero;
         Position = TimeSpan.Zero;
+        RefreshVisibleCameras();
 
         foreach (var m in metadata.TimingMarkers)
             Markers.Add(new ReplayMarkerViewModel(m, FractionFor(m.VideoTime)));
@@ -162,6 +169,17 @@ public partial class ReplayViewModel : ViewModelBase
         foreach (var c in Cameras)
             if (c.IsSelected)
                 VisibleCameras.Add(c);
+
+        // Frame-step boundaries = the union of the visible cameras' frame times on the master timeline,
+        // deduped to whole-millisecond ticks so near-identical times from two cameras collapse to one.
+        _frameBoundaries = VisibleCameras
+            .SelectMany(c => c.MasterFrameTimesMs)
+            .Select(ms => Math.Max(0, ms))
+            .Select(ms => (long)Math.Round(ms))
+            .Distinct()
+            .OrderBy(ms => ms)
+            .Select(ms => TimeSpan.FromMilliseconds(ms))
+            .ToList();
     }
 
     [RelayCommand]
@@ -182,11 +200,25 @@ public partial class ReplayViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Advance to the next frame boundary among the visible cameras (whichever has one next).</summary>
     [RelayCommand]
-    private void StepForward() { Pause(); Seek(Position + _frameStep); }
+    private void StepForward()
+    {
+        Pause();
+        var eps = TimeSpan.FromMilliseconds(0.5);
+        var next = _frameBoundaries.FirstOrDefault(t => t > Position + eps, TimeSpan.MinValue);
+        Seek(next == TimeSpan.MinValue ? Duration : next);
+    }
 
+    /// <summary>Step back to the previous frame boundary among the visible cameras.</summary>
     [RelayCommand]
-    private void StepBackward() { Pause(); Seek(Position - _frameStep); }
+    private void StepBackward()
+    {
+        Pause();
+        var eps = TimeSpan.FromMilliseconds(0.5);
+        var prev = _frameBoundaries.LastOrDefault(t => t < Position - eps, TimeSpan.MinValue);
+        Seek(prev == TimeSpan.MinValue ? TimeSpan.Zero : prev);
+    }
 
     /// <summary>Seek the master clock to a marker; every selected camera jumps with it.</summary>
     [RelayCommand]

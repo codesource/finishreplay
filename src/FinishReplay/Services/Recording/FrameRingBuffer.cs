@@ -31,5 +31,8 @@ public sealed class FrameRingBuffer
     /// <summary>The retained frames, oldest first — the pre-roll to prepend to a clip.</summary>
     public IReadOnlyList<byte[]> Snapshot() => _frames.Select(f => f.Data).ToList();
 
+    /// <summary>The retained frames with their stream timestamps, oldest first.</summary>
+    public IReadOnlyList<(TimeSpan Time, byte[] Data)> SnapshotTimed() => _frames.ToList();
+
     public void Clear() => _frames.Clear();
 }
