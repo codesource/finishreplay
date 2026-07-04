@@ -206,20 +206,12 @@ public partial class RecordingViewModel : ViewModelBase
         foreach (var profile in s.Cameras.Where(p => p.Enabled))
         {
             var row = new CameraProfileRowViewModel(profile) { IsSelected = true };
+            row.RefreshCommand = RefreshCameraCommand; // right-click → refresh this camera
             Cameras.Add(row);
 
             // Real live capture: MJPEG (native HTTP), RTSP and USB (via ffmpeg). Start preview now.
             if (HasLiveCapture(profile.SourceType))
-            {
-                var live = new LiveCamera(_registry, profile, () => _settings.Current.FfmpegPath)
-                {
-                    PreRecordSeconds = s.PreRecordSeconds, // keep this much rolling pre-roll ready
-                };
-                live.FrameReady += row.SubmitJpeg;
-                live.Error += row.SetError;
-                live.Start();
-                _live[profile.Id] = live;
-            }
+                StartLive(row);
         }
 
         OnPropertyChanged(nameof(StorageDirectory));
@@ -228,6 +220,47 @@ public partial class RecordingViewModel : ViewModelBase
 
         if (Cameras.Count > 0)
             _ = AutoCalibrateAsync();
+    }
+
+    /// <summary>Open the live capture for a row and tee its frames to the preview tile.</summary>
+    private void StartLive(CameraProfileRowViewModel row)
+    {
+        var live = new LiveCamera(_registry, row.Profile, () => _settings.Current.FfmpegPath)
+        {
+            PreRecordSeconds = _settings.Current.PreRecordSeconds, // rolling pre-roll kept ready
+        };
+        live.FrameReady += row.SubmitJpeg;
+        live.Error += row.SetError;
+        live.Start();
+        _live[row.Id] = live;
+    }
+
+    /// <summary>Restart one camera's capture (right-click → Refresh on its tile). Disabled while recording.</summary>
+    [RelayCommand]
+    private async Task RefreshCamera(CameraProfileRowViewModel? row)
+    {
+        if (row is null || IsBusy || !HasLiveCapture(row.SourceType))
+            return;
+
+        if (_live.Remove(row.Id, out var existing))
+        {
+            try { await existing.DisposeAsync().ConfigureAwait(true); }
+            catch { /* ignore teardown errors */ }
+        }
+
+        row.PrepareReconnect(); // clear stale frame/error so the tile shows it's reconnecting
+        StartLive(row);
+    }
+
+    /// <summary>Tear down all live cameras and their worker processes (called on app exit).</summary>
+    public void ShutdownCameras()
+    {
+        var cams = _live.Values.ToList();
+        _live.Clear();
+        try { Task.WhenAll(cams.Select(c => c.DisposeAsync().AsTask())).Wait(TimeSpan.FromSeconds(4)); }
+        catch { /* best-effort on exit */ }
+        try { _hardwareTiming?.Dispose(); }
+        catch { /* ignore */ }
     }
 
     private async Task AutoCalibrateAsync()

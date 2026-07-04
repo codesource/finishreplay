@@ -60,6 +60,12 @@
                         <DataTemplate x:DataType="vm:CameraProfileRowViewModel">
                             <Border Margin="4" CornerRadius="6" ClipToBounds="True"
                                     Background="#111827" BorderBrush="#1F2937" BorderThickness="1">
+                                <Border.ContextMenu>
+                                    <ContextMenu x:CompileBindings="False">
+                                        <MenuItem Header="Refresh camera" Command="{Binding RefreshCommand}"
+                                                  CommandParameter="{Binding}" />
+                                    </ContextMenu>
+                                </Border.ContextMenu>
                                 <Grid>
                                     <Image Source="{Binding Preview}" Stretch="Uniform" />
 

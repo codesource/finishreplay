@@ -16,10 +16,12 @@ public partial class App : Application
         {
             // Simple manual composition root. If the service graph grows, swap this
             // for Microsoft.Extensions.DependencyInjection without touching the views.
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = new MainViewModel(),
-            };
+            var main = new MainViewModel();
+            desktop.MainWindow = new MainWindow { DataContext = main };
+
+            // Release cameras (and kill the worker processes holding a USB webcam) when the app exits —
+            // otherwise the device stays active after the window closes.
+            desktop.ShutdownRequested += (_, _) => main.Shutdown();
         }
 
         base.OnFrameworkInitializationCompleted();

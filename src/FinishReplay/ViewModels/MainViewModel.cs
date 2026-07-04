@@ -72,4 +72,7 @@ public partial class MainViewModel : ViewModelBase
         await Replay.RefreshSessionsAsync();
         CurrentPage = Replay;
     }
+
+    /// <summary>Release capture devices and worker processes on application exit.</summary>
+    public void Shutdown() => Recording.ShutdownCameras();
 }

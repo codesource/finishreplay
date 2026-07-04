@@ -27,6 +27,9 @@ public partial class CameraProfileRowViewModel : ObservableObject
     public string SourceType => Profile.SourceType;
     public string SourceUrl => Profile.SourceUrl;
 
+    /// <summary>Command that restarts this camera's capture (bound to the tile's right-click menu).</summary>
+    public System.Windows.Input.ICommand? RefreshCommand { get; set; }
+
     /// <summary>Whether this camera participates in recording/calibration.</summary>
     [ObservableProperty]
     private bool _isSelected = true;
@@ -72,6 +75,17 @@ public partial class CameraProfileRowViewModel : ObservableObject
     /// <summary>Show a capture error in the preview tile (marshals to the UI thread).</summary>
     public void SetError(string message) =>
         Dispatcher.UIThread.Post(() => ErrorText = message);
+
+    /// <summary>Clear the last frame and error so the tile shows "reconnecting" until frames resume.</summary>
+    public void PrepareReconnect()
+    {
+        var old = Preview;
+        Preview = null;
+        old?.Dispose();
+        ErrorText = null;
+        Resolution = null;
+        FrameRate = null;
+    }
 
     /// <summary>
     /// Decode a JPEG frame (off the UI thread) and publish it as the preview, throttled to ~15 fps
