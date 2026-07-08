@@ -72,13 +72,37 @@ jobs:
         run: dotnet test FinishReplay.sln -c Release --nologo
 
       # App and worker publish into the SAME folder so MediaWorkerLocator finds the worker.
-      # NOTE: Sdcb.FFmpeg ships no Linux native-libs package, so the worker's in-process codec
-      # needs FFmpeg 7 shared libs at runtime (managed-only MJPEG/AVI paths work without them).
       - name: Publish app
         run: dotnet publish src/FinishReplay/FinishReplay.csproj -c Release -r linux-x64 --self-contained true -p:Version=${{ steps.ver.outputs.version }} -o publish
 
       - name: Publish media worker (embedded FFmpeg)
         run: dotnet publish src/FinishReplay.MediaWorker/FinishReplay.MediaWorker.csproj -c Release -r linux-x64 --self-contained true -p:Version=${{ steps.ver.outputs.version }} -o publish
+
+      # Sdcb.FFmpeg ships no Linux native-libs NuGet package, so the worker's in-process codec
+      # has no libav to load. Fetch a GPL *shared* FFmpeg 7 build (matching the sonames Sdcb.FFmpeg
+      # 7.0.0 P/Invokes: libavcodec.so.61, libavutil.so.59, …) and drop its .so files next to the
+      # worker. GPL is fine — the app is already GPLv3.
+      - name: Bundle FFmpeg 7 shared libs
+        run: |
+          url="https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-linux64-gpl-shared-7.1.tar.xz"
+          curl -fsSL "$url" -o ffmpeg7.tar.xz
+          mkdir ffmpeg7 && tar -xf ffmpeg7.tar.xz -C ffmpeg7 --strip-components=1
+          cp -a ffmpeg7/lib/*.so* publish/
+
+      # .NET resolves the worker's top-level libav* by full path, but the dynamic loader resolves
+      # THEIR inter-dependencies (e.g. libavdevice → libavfilter) via the search path — which does
+      # not include the app dir. So make `FinishReplay` a launcher that puts its own folder on
+      # LD_LIBRARY_PATH; the worker is a child process and inherits it.
+      - name: Add LD_LIBRARY_PATH launcher
+        run: |
+          mv publish/FinishReplay publish/FinishReplay.bin
+          cat > publish/FinishReplay <<'EOF'
+          #!/bin/sh
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          export LD_LIBRARY_PATH="$DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          exec "$DIR/FinishReplay.bin" "$@"
+          EOF
+          chmod +x publish/FinishReplay publish/FinishReplay.bin
 
       - name: Package
         run: tar -czf "FinishReplay-${{ steps.ver.outputs.version }}-linux-x64.tar.gz" -C publish .
