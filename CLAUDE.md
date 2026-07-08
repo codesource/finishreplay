@@ -129,3 +129,11 @@ GitHub: `git@github.com:codesource/finishreplay.git`. A repo **deploy key** (wri
 publishing; the private key lives at `~/.ssh/finishreplay_deploy` and git is configured to use it via
 `core.sshCommand` (`-o IdentitiesOnly=yes`, so it never interferes with other GitHub keys). Publishing
 identity: **codesource / admin@code-source.ch**. Just `git push origin main` — auth is automatic.
+
+**Releases** are cut by pushing a version tag ([.github/workflows/release.yml](.github/workflows/release.yml)):
+`git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1`. The workflow runs `dotnet test`, then
+publishes a **self-contained win-x64** build (no .NET install needed). Critically, the app **and** the
+`FinishReplay.MediaWorker` are published into the *same* `publish/` folder so `MediaWorkerLocator`
+finds the worker (and its bundled FFmpeg native libs) next to the app — keep both `dotnet publish`
+steps if you touch this. A tag containing a hyphen (`-alpha`/`-beta`/`-rc`) is marked as a
+GitHub **pre-release**; the zip is attached to a release with auto-generated notes.
